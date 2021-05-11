@@ -135,12 +135,10 @@ class Support:
         image_sum = devlib.sum(ds_image_abs)
         shifted = devlib.ifftshift(ds_image_abs)
         rs_amplitudes = devlib.fft(shifted)
-        rs_amplitudes_cent = devlib.fftshift(rs_amplitudes)
+        rs_amplitudes_cent = devlib.ifftshift(rs_amplitudes)
         amp_dist = rs_amplitudes_cent * self.distribution
-        shift = [d/2 +1 for d in amp_dist.dims()]
-        shifted = devlib.shift(amp_dist, tuple(shift))
+        shifted = devlib.ifftshift(amp_dist)
         convag_compl = devlib.ifft(shifted)
-
         convag = devlib.ifftshift(convag_compl)
         convag = devlib.real(convag)
         convag = devlib.where(convag > 0, convag, 0.0)
@@ -222,7 +220,7 @@ class Rec:
         self.support_obj.af_init()
 
         self.dims = self.data.dims()
-        self.ds_image = devlib.random(self.dims)
+        self.ds_image = devlib.random(self.dims, dtype=data.dtype)
 
         norm_data = self.get_norm(self.data)
         num_points = self.data.elements()
@@ -230,12 +228,14 @@ class Rec:
             max_data = devlib.max(self.data)
             self.ds_image *= self.get_norm(self.ds_image) * max_data
 
-            temp = self.support_obj.get_support().copy()
-            self.ds_image = devlib.asarray(temp, dtype=np.complex64)
+            # temp = self.support_obj.get_support().copy()
+            # self.ds_image = devlib.asarray(temp, dtype=data.dtype)
+
+            print ('ds_image af type', self.ds_image.dtype())
             self.ds_image *= self.support_obj.get_support()
 
-        print('in init , data type, norm', self.data.type(), self.get_norm(self.data))
-        print('ds_image norm', self.get_norm(self.ds_image))
+        # print('in init , data type, norm', self.data.type(), self.get_norm(self.data))
+        # print('ds_image norm', self.get_norm(self.ds_image))
 
     def iterate(self):
         start_t = time.time()
@@ -280,6 +280,7 @@ class Rec:
     def shrink_wrap_trigger(self):
 #        print('******* shrink wrap')
         self.support_obj.update_amp(self.ds_image, self.sigma)
+        print ('shrink wrap, support norm', get_norm(self.support_obj.get_support()))
 
     def phase_support_trigger(self):
 #        print('****** phase trig')
@@ -429,7 +430,7 @@ def fast_module_reconstruction(proc, device, params, data, image=None, support=N
     iter_array : ndarray
         info to scientist/developer; an array of 0s and 1s, 1 meaning the function in flow will be executed in iteration, 0 otherwise
     """
-    d_type = np.float64
+    d_type = np.float32
     data = np.fft.fftshift(data).astype(d_type)
 #    print(data.shape)
     set_lib('af', len(data.shape))
@@ -440,8 +441,5 @@ def fast_module_reconstruction(proc, device, params, data, image=None, support=N
 
     mx = np.abs(image).max()
     image = image / mx
-
-    print('image, shape', image.shape)
-#    print(image)
 
     return image, support, None, err

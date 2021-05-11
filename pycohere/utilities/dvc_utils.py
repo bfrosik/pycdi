@@ -78,3 +78,8 @@ def center_of_mass(input):
 
     return com
 
+
+def get_max(arr):
+    import arrayfire as af
+
+    return af.imax(arr)
