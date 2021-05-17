@@ -36,29 +36,6 @@ MEM_FACTOR = 1500
 ADJUST = 0.0
 
 
-def interrupt_thread():
-    """
-    This function is part of interrupt mechanism. It detects ctl-c signal and creates an empty file named "stopfile".
-    The file is discovered by fast module processand the discovery prompts termination of that process.
-    """
-
-    def int_handler(signal, frame):
-        while not os.path.isfile('stopfile'):
-            open('stopfile', 'a').close()
-            time.sleep(.3)
-
-        # #remove the file at the end
-        if os.path.isfile('stopfile'):
-            os.remove('stopfile')
-
-    def term_handler(signal, frame):
-        pass
-
-    signal.signal(signal.SIGINT, int_handler)
-    signal.signal(signal.SIGTERM, term_handler)
-    signal.pause()
-
-
 def rec_process(proc, conf_file, datafile, dir, gpus, r, q):
     """
     Calls the reconstruction function in a module identified by parameter. After the reconstruction is finished, it enqueues th eprocess id wit associated list of gpus.
@@ -164,10 +141,6 @@ def manage_reconstruction(proc, experiment_dir, rec_id=None):
     -------
     nothing
     """
-    if os.path.exists('stopfile'):
-        os.remove('stopfile')
-    print('starting reconstruction')
-
     # the rec_id is a postfix added to config_rec configuration file. If defined, use this configuration.
     conf_dir = os.path.join(experiment_dir, 'conf')
     if rec_id is None:
@@ -247,10 +220,6 @@ def manage_reconstruction(proc, experiment_dir, rec_id=None):
         else:
             device_use = devices
 
-    # start the interrupt process
-    interrupt_process = Process(target=interrupt_thread, args=())
-    interrupt_process.start()
-
     if no_runs == 1:
         if len(device_use) == 0:
             device_use = [-1]
@@ -301,7 +270,6 @@ def manage_reconstruction(proc, experiment_dir, rec_id=None):
             del processes[pid]
         q.close()
 
-    interrupt_process.terminate()
     print('finished reconstruction')
 
 
