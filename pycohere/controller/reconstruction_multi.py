@@ -13,6 +13,8 @@ import pycohere.utilities.utils as ut
 import pycohere.controller.rec as calc
 from multiprocessing import Pool, Queue
 from functools import partial
+from pycohere.controller.params import Params
+
 
 __author__ = "Barbara Frosik"
 __copyright__ = "Copyright (c) 2016, UChicago Argonne, LLC."
@@ -23,7 +25,7 @@ __all__ = ['single_rec_process',
            'reconstruction']
 
 
-def single_rec_process(proc, conf, data, coh_dims, req_metric, dirs):
+def single_rec_process(proc, params, data, req_metric, dirs):
     """
     This function runs a single reconstruction process.
 
@@ -32,14 +34,11 @@ def single_rec_process(proc, conf, data, coh_dims, req_metric, dirs):
     proc : str
         string defining library used 'cpu' or 'opencl' or 'cuda'
 
-    conf : str
-        configuration file
+    pars : Object
+        Params object containing parsed configuration
 
     data : numpy array
         data array
-
-    coh_dims : tuple
-        shape of coherence array
 
     req_metric : str
         defines metric that will be used if GA is utilized
@@ -60,7 +59,7 @@ def single_rec_process(proc, conf, data, coh_dims, req_metric, dirs):
     else:
         prev_image, prev_support, prev_coh = ut.read_results(prev)
 
-    image, support, coh, errs = calc.fast_module_reconstruction(proc, gpu, conf, data, coh_dims, prev_image,
+    image, support, coh, errs = calc.fast_module_reconstruction(proc, gpu, params, data, prev_image,
                                                                 prev_support, prev_coh)
 
     metric = ut.get_metric(image, errs)
@@ -86,7 +85,7 @@ def assign_gpu(*args):
     gpu = q.get()
 
 
-def multi_rec(save_dir, proc, data, conf, config_map, devices, prev_dirs, metric='chi'):
+def multi_rec(save_dir, proc, data, pars, devices, prev_dirs, metric='chi'):
     """
     This function controls the multiple reconstructions.
 
@@ -101,11 +100,8 @@ def multi_rec(save_dir, proc, data, conf, config_map, devices, prev_dirs, metric
     data : numpy array
         data array
 
-    conf : str
-        configuration file name
-
-    config_map : dict
-        parsed configuration
+    pars : Object
+        Params object containing parsed configuration
 
     devices : list
         list of GPUs available for this reconstructions
@@ -131,17 +127,13 @@ def multi_rec(save_dir, proc, data, conf, config_map, devices, prev_dirs, metric
 
     iterable = []
     save_dirs = []
-    reconstructions = config_map.reconstructions
+    reconstructions = pars.reconstructions
     for i in range(reconstructions):
         save_sub = os.path.join(save_dir, str(i))
         save_dirs.append(save_sub)
         iterable.append((prev_dirs[i], save_sub))
-    try:
-        coh_dims = tuple(config_map.partial_coherence_roi)
-    except:
-        coh_dims = None
 
-    func = partial(single_rec_process, proc, conf, data, coh_dims, metric)
+    func = partial(single_rec_process, proc, pars, data, metric)
     q = Queue()
     for device in devices:
         q.put(device)
@@ -183,41 +175,34 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
     data = ut.read_tif(datafile)
     print('data shape', data.shape)
 
-    try:
-        config_map = ut.read_config(conf_file)
-        if config_map is None:
-            print("can't read configuration file " + conf_file)
-            return
-    except:
-        print('Cannot parse configuration file ' + conf_file + ' , check for matching parenthesis and quotations')
-        return
+    pars = Params(conf_file)
+    er_msg = pars.set_params()
+    if er_msg is not None:
+        return er_msg
 
     try:
-        reconstructions = config_map.reconstructions
+        reconstructions = pars.reconstructions
     except:
         reconstructions = 1
+    print ('reconstr', reconstructions)
 
     prev_dirs = []
-    try:
-        if config_map.cont:
-            try:
-                continue_dir = config_map.continue_dir
-                for sub in os.listdir(continue_dir):
-                    image, support, coh = ut.read_results(os.path.join(continue_dir, sub) + '/')
-                    if image is not None:
-                        prev_dirs.append(sub)
-            except:
-                print("continue_dir not configured")
-                return None
-    except:
+    if pars.cont:
+        continue_dir = pars.continue_dir
+        for sub in os.listdir(continue_dir):
+            image, support, coh = ut.read_results(os.path.join(continue_dir, sub) + '/')
+            if image is not None:
+                prev_dirs.append(sub)
+    else:
         for _ in range(reconstructions):
+            print('adding None')
             prev_dirs.append(None)
-
+    print ('no prev', len(prev_dirs))
     try:
-        save_dir = config_map.save_dir
+        save_dir = pars.save_dir
     except AttributeError:
         filename = conf_file.split('/')[-1]
         save_dir = os.path.join(dir, filename.replace('config_rec', 'results'))
 
-    save_dirs, evals = multi_rec(save_dir, proc, data, conf_file, config_map, devices, prev_dirs)
+    save_dirs, evals = multi_rec(save_dir, proc, data, pars, devices, prev_dirs)
 

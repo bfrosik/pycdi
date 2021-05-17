@@ -59,7 +59,7 @@ class Params:
         if conf.lookup('device') is not None:
             self.device = conf.device
         else:
-            self.device = (0)
+            self.device = (-1)
         if conf.lookup('beta') is not None:
             self.beta = conf.beta
         else:

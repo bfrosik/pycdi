@@ -33,11 +33,8 @@ def single_rec(proc, data, pars, dev, image, support, coh):
     data : numpy array
         data array
 
-    conf : str
-        configuration file name
-
-    config_map : dict
-        parsed configuration with reconstruction parameters
+    pars : Object
+        Params object containing parsed configuration
 
     dev : int
         id defining the GPU this reconstruction will be utilizing, or -1 if running cpu or the gpu assignment is left to OS

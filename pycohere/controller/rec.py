@@ -203,9 +203,10 @@ class Rec:
             self.pcdi_obj = Pcdi(self.params)
 
 
-    def af_init(self, device, data, first):
-        devlib.set_backend('opencl')
-        devlib.set_device(device)
+    def dev_init(self, proc, device, data, first):
+        devlib.set_backend(proc)
+        if device != -1:
+            devlib.set_device(device)
 
         data_r = devlib.from_numpy(data)
         self.data = devlib.abs(data_r)
@@ -436,7 +437,7 @@ def fast_module_reconstruction(proc, device, params, data, image=None, support=N
     set_lib('af', len(data.shape))
 
     worker = Rec(params, data.shape, (image is None))
-    worker.af_init(device, data, (image is None))
+    worker.dev_init(proc, device, data, (image is None))
     image, support, err = worker.iterate()
 
     mx = np.abs(image).max()
