@@ -18,6 +18,8 @@ import pycohere.utilities.utils_ga as gut
 import multiprocessing as mp
 import shutil
 from functools import partial
+from pycohere.controller.params import Params
+
 
 __author__ = "Barbara Frosik"
 __copyright__ = "Copyright (c) 2016, UChicago Argonne, LLC."
@@ -36,80 +38,22 @@ class Generation:
     This class holds fields relevant to generations according to configuration and encapsulates generation functionality.
     """
 
-    def __init__(self, config_map):
+    def __init__(self, pars):
         """
         Constructor, parses GA parameters from configuration file and saves as class members.
         """
         self.current_gen = 0
-        try:
-            self.generations = config_map.generations
-        except AttributeError:
-            self.generations = 1
-
-        try:
-            self.metrics = tuple(config_map.ga_metrics)
-            if len(self.metrics) < self.generations:
-                self.metrics = self.metrics + ('chi',) * (self.generations - len(self.metrics))
-        except AttributeError:
-            self.metrics = ('chi',) * self.generations
-
-        try:
-            self.worst_remove_no = tuple(config_map.ga_removes)
-            if len(self.worst_remove_no) < self.generations:
-                self.worst_remove_no = self.worst_remove_no + (0,) * (self.generations - len(self.worst_remove_no))
-        except AttributeError:
-            self.worst_remove_no = None
-
-        try:
-            self.ga_support_thresholds = tuple(config_map.ga_support_thresholds)
-            if len(self.ga_support_thresholds) < self.generations:
-                try:
-                    support_threshold = config_map.support_threshold
-                except:
-                    support_threshold = .1
-                self.ga_support_thresholds = self.ga_support_thresholds + (support_threshold,) * (
-                self.generations - len(self.ga_support_thresholds))
-        except AttributeError:
-            try:
-                support_threshold = config_map.support_threshold
-            except:
-                support_threshold = .1
-            self.ga_support_thresholds = (support_threshold,) * (self.generations)
-
-        try:
-            self.ga_support_sigmas = tuple(config_map.ga_support_sigmas)
-            if len(self.ga_support_sigmas) < self.generations:
-                try:
-                    support_sigma = config_map.support_sigma
-                except:
-                    support_sigma = 1.0
-                self.ga_support_sigmas = self.ga_support_sigmas + (support_sigma,) * (
-                self.generations - len(self.ga_support_sigmas))
-        except AttributeError:
-            try:
-                support_sigma = config_map.support_sigma
-            except:
-                support_sigma = 1.0
-            self.ga_support_sigmas = (support_sigma,) * (self.generations)
-
-        try:
-            self.breed_modes = tuple(config_map.ga_breed_modes)
-            if len(self.breed_modes) < self.generations:
-                self.breed_modes = self.breed_modes + ('none',) * (self.generations - len(self.breed_modes))
-        except AttributeError:
-            self.breed_modes = ('none',) * self.generations
-
-        try:
-            self.sigmas = config_map.ga_low_resolution_sigmas
-            self.low_resolution_generations = len(self.sigmas)
-        except AttributeError:
-            self.low_resolution_generations = 0
-
+        self.generations = pars.generations
+        self.metrics = tuple(pars.metrics)
+        self.worst_remove_no = pars.worst_remove_no
+        self.ga_support_thresholds = tuple(pars.ga_support_thresholds)
+        self.ga_support_sigmas = tuple(pars.ga_support_sigmas)
+        self.breed_modes = tuple(pars.breed_modes)
+        self.low_resolution_generations = pars.low_resolution_generations
         if self.low_resolution_generations > 0:
-            try:
-                self.low_resolution_alg = config_map.ga_low_resolution_alg
-            except AttributeError:
-                self.low_resolution_alg = 'GAUSS'
+            self.low_resolution_alg = pars.low_resolution_alg
+            self.sigmas = pars.ga_low_resolution_sigmas
+
 
     def next_gen(self):
         """
@@ -373,32 +317,26 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
     data = ut.read_tif(datafile)
     print('data shape', data.shape)
 
+    pars = Params(conf_file)
+    er_msg = pars.set_params()
+    if er_msg is not None:
+        return er_msg
+
     try:
-        config_map = ut.read_config(conf_file)
-        if config_map is None:
-            print("can't read configuration file " + conf_file)
-            return
-    except:
-        print('Cannot parse configuration file ' + conf_file + ' , check for matching parenthesis and quotations')
-        return
-    try:
-        reconstructions = config_map.reconstructions
+        reconstructions = pars.reconstructions
     except:
         reconstructions = 1
 
-    gen_obj = Generation(config_map)
+    gen_obj = Generation(pars)
 
     try:
-        save_dir = config_map.save_dir
+        save_dir = pars.save_dir
     except AttributeError:
         filename = conf_file.split('/')[-1]
         save_dir = os.path.join(dir, filename.replace('config_rec', 'results'))
     temp_dir = os.path.join(save_dir, 'temp')
-    try:
-        generations = config_map.generations
-    except:
-        print('generations not configured')
-        return
+
+    generations = pars.generations
 
     # init starting values
     # if multiple reconstructions configured (typical for genetic algorithm), use "reconstruction_multi" module
@@ -411,7 +349,7 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
             gen_data = gen_obj.get_data(data)
             gen_save_dir = os.path.join(save_dir, 'g_' + str(g))
             m = gen_obj.metrics[g]
-            save_dirs, evals = rec.multi_rec(gen_save_dir, proc, gen_data, conf_file, config_map, devices, temp_dirs, m)
+            save_dirs, evals = rec.multi_rec(gen_save_dir, proc, gen_data, pars, devices, temp_dirs, m)
 
             # results are saved in a list of directories - save_dir
             # it will be ranked, and moved to temporary ranked directories
@@ -432,7 +370,7 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
 
         for g in range(generations):
             gen_data = gen_obj.get_data(data)
-            image, support, coh, err, recip, flows, iter_arrs = rec.single_rec(proc, gen_data, conf_file, config_map,
+            image, support, coh, err, recip, flows, iter_arrs = rec.single_rec(proc, gen_data, pars,
                                                                                devices[0], image, support, coh)
             if image is None:
                 return

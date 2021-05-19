@@ -126,7 +126,7 @@ class Params:
                     support_sigma = 1.0
                 self.ga_support_sigmas = [support_sigma, ] * (self.generations)
 
-            if conf.lookup('breed_modes') is not None:
+            if conf.lookup('ga_breed_modes') is not None:
                 self.breed_modes = list(conf.ga_breed_modes)
                 if len(self.breed_modes) == 1:
                     self.breed_modes = self.breed_modes * self.generations
@@ -135,8 +135,8 @@ class Params:
             else:
                 self.breed_modes = ['none', ] * self.generations
 
-            if conf.lookup('sigmas') is not None:
-                self.sigmas = conf.ga_low_resolution_sigmas
+            if conf.lookup('ga_low_resolution_sigmas') is not None:
+                self.ga_low_resolution_sigmas = conf.ga_low_resolution_sigmas
                 self.low_resolution_generations = len(self.sigmas)
             else:
                 self.low_resolution_generations = 0

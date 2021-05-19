@@ -139,6 +139,8 @@ def multi_rec(save_dir, proc, data, pars, devices, prev_dirs, metric='chi'):
         q.put(device)
     with Pool(processes=len(devices), initializer=assign_gpu, initargs=(q,)) as pool:
         pool.map_async(func, iterable, callback=collect_result)
+        q.close()
+        q.join_thread()
         pool.close()
         pool.join()
         pool.terminate()
@@ -184,7 +186,6 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
         reconstructions = pars.reconstructions
     except:
         reconstructions = 1
-    print ('reconstr', reconstructions)
 
     prev_dirs = []
     if pars.cont:
@@ -195,9 +196,7 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
                 prev_dirs.append(sub)
     else:
         for _ in range(reconstructions):
-            print('adding None')
             prev_dirs.append(None)
-    print ('no prev', len(prev_dirs))
     try:
         save_dir = pars.save_dir
     except AttributeError:
