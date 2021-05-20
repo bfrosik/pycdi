@@ -48,14 +48,16 @@ class Pcdi:
 
     def af_init(self, data):
         self.dims = devlib.dims(data)
-        self.roi_data = dvut.crop_center(data, self.params.partial_coherence_roi).copy()
+        centered = devlib.ifftshift(data).copy()
+        self.roi_data = dvut.crop_center(centered, self.params.partial_coherence_roi)
         if self.params.partial_coherence_normalize:
             self.sum_roi_data = devlib.sum(devlib.square(self.roi_data))
         if self.kernel is None:
             self.kernel = devlib.full(self.params.partial_coherence_roi, 0.5, dtype=data.dtype())
 
     def set_previous(self, abs_amplitudes):
-        self.roi_amplitudes_prev = dvut.crop_center(abs_amplitudes, self.params.partial_coherence_roi).copy()
+        centered = devlib.ifftshift(abs_amplitudes).copy()
+        self.roi_amplitudes_prev = dvut.crop_center(centered, self.params.partial_coherence_roi)
 
     def apply_partial_coherence(self, abs_amplitudes):
         abs_amplitudes_2 = devlib.square(abs_amplitudes)
@@ -65,7 +67,8 @@ class Pcdi:
         return converged
 
     def update_partial_coherence(self, abs_amplitudes):
-        roi_amplitudes = dvut.crop_center(abs_amplitudes, self.params.partial_coherence_roi).copy()
+        centered = devlib.ifftshift(abs_amplitudes).copy()
+        roi_amplitudes = dvut.crop_center(centered, self.params.partial_coherence_roi)
         roi_combined_amp = 2 * roi_amplitudes - self.roi_amplitudes_prev
         if self.params.partial_coherence_normalize:
             amplitudes_2 = devlib.square(roi_combined_amp)
@@ -123,11 +126,10 @@ class Support:
         return self.support
 
     def get_distribution(self, dims, sigma):
-        alpha = 1
         sigmas = []
         for i in range(len(dims)):
             sigmas.append(dims[i] / (2.0 * np.pi * self.params.support_sigma))
-        dist = dvut.gaussian(dims, sigmas, alpha)
+        dist = devlib.gaussian(dims, sigmas)
 
         return dist
 
@@ -268,7 +270,7 @@ class Rec:
             sigmas = []
             for i in range(len(self.dims)):
                 sigmas.append(self.dims[i] * self.params.ll_dets[self.iter])
-            distribution = dvut.gaussian(self.dims, sigmas)
+            distribution = devlib.gaussian(self.dims, sigmas)
             max_el = devlib.max(distribution)
             distribution = distribution / max_el
             data_shifted = devlib.ifftshift(self.data)
@@ -351,8 +353,8 @@ class Rec:
     def twin_trigger(self):
 #        print('******** twin trig')
         # mass center self.ds_image
-        com = dvut.center_of_mass(self.ds_image)
-#        print(com)
+        com = devlib.center_of_mass(self.ds_image)
+        print('com',com)
         self.ds_image = devlib.shift(self.ds_image, com)
         dims = self.ds_image.shape
         half_x = int((dims[0] + 1) / 2)

@@ -112,12 +112,36 @@ class aflib(cohlib):
         else:
             return af.flip(arr, axis)
 
-    def full(shape, fill_value, dtype=None):
+    def full(shape, fill_value, **kwargs):
         dims = [None, None, None, None]
         for i in range(len(shape)):
             dims[i] = shape[i]
-        return af.constant(fill_value, dims[0], dims[1], dims[2], dims[3], dtype=dtype)
+        return af.constant(fill_value, dims[0], dims[1], dims[2], dims[3])
 
+    def gaussian(shape, sigmas, **kwargs):
+        raise NotImplementedError
+
+    def center_of_mass(inarr):
+        arr = af.abs(inarr)
+        normalizer = af.sum(arr)
+        t_dims = list(arr.dims())
+        mod_dims = [None, None, None, None]
+        for i in range(len(t_dims)):
+            mod_dims[i] = 1
+        com = []
+
+        for dim in range(len(t_dims)):
+            # swap
+            mod_dims[dim] = t_dims[dim]
+            t_dims[dim] = 1
+            grid = af.iota(mod_dims[0], mod_dims[1], mod_dims[2], mod_dims[3], tile_dims=t_dims)
+    #        print(grid)
+            com.append(af.sum(grid * arr) / normalizer)
+            # swap back
+            t_dims[dim] = mod_dims[dim]
+            mod_dims[dim] = 1
+
+        return com
 
 class aflib1(aflib):
     def fftshift(arr):
@@ -155,6 +179,17 @@ class aflib1(aflib):
         else:
             return af.flip(arr, axis)
 
+    def gaussian(dims, sigmas, **kwargs):
+        alpha = 1.0
+        grid = af.constant(1.0, dims[0])
+        multiplier = - 0.5 * alpha / pow(sigmas[0], 2)
+        exponent = af.pow((af.range(dims[0], dim=0) - (dims[0] - 1) / 2.0), 2) * multiplier
+        grid = grid * af.arith.exp(exponent)
+
+        grid_tot = af.sum(grid, dim=0)
+        grid_total = af.tile(grid_tot, dims[0])
+        grid = grid / grid_total
+        return grid
 
 class aflib2(aflib):
     def fftshift(arr):
@@ -194,6 +229,19 @@ class aflib2(aflib):
             return af.flip(af.flip(arr, 0), 1)
         else:
             return af.flip(arr, axis)
+
+    def gaussian(dims, sigmas, **kwargs):
+        alpha = 1.0
+        grid = af.constant(1.0, dims[0], dims[1])
+        for i in range(len(sigmas)):
+            multiplier = - 0.5 * alpha / pow(sigmas[i], 2)
+            exponent = af.pow((af.range(dims[0], dims[1], dim=i) - (dims[i] - 1) / 2.0), 2) * multiplier
+            grid = grid * af.arith.exp(exponent)
+
+        grid_tot = af.sum(af.sum(grid, dim=0), dim=1)
+        grid_total = af.tile(grid_tot, dims[0], dims[1])
+        grid = grid / grid_total
+        return grid
 
 
 class aflib3(aflib):
@@ -240,4 +288,17 @@ class aflib3(aflib):
             return af.flip(af.flip(af.flip(arr, 0), 1), 2)
         else:
             return af.flip(arr, axis)
+
+    def gaussian(dims, sigmas, **kwargs):
+        alpha = 1.0
+        grid = af.constant(1.0, dims[0], dims[1], dims[2])
+        for i in range(len(sigmas)):
+            multiplier = - 0.5 * alpha / pow(sigmas[i], 2)
+            exponent = af.pow((af.range(dims[0], dims[1], dims[2], dim=i) - (dims[i] - 1) / 2.0), 2) * multiplier
+            grid = grid * af.arith.exp(exponent)
+
+        grid_tot = af.sum(af.sum(af.sum(grid, dim=0), dim=1), dim=2)
+        grid_total = af.tile(grid_tot, dims[0], dims[1], dims[2])
+        grid = grid / grid_total
+        return grid
 

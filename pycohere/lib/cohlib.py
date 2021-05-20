@@ -64,7 +64,7 @@ class cohlib:
     def random(shape, **kwargs):
         pass
 
-    def full(shape, fill_value, dtype=None):
+    def full(shape, fill_value, **kwargs):
         pass
 
     def print(arr, **kwargs):
@@ -93,3 +93,8 @@ class cohlib:
     def flip(arr, axis):
         pass
 
+    def gaussian(dims, sigmas, **kwargs):
+        pass
+
+    def center_of_mass(arr):
+        pass
