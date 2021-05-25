@@ -5,10 +5,6 @@ import numpy as np
 
 
 class aflib(cohlib):
-    def iifftshift(arr):
-        return af.shift(arr, math.ceil(arr.dims()[0] / 2) + 1, math.ceil(arr.dims()[1] / 2) + 1,
-                        math.ceil(arr.dims()[2] / 2) + 1)
-
     def set_device(dev_id):
         af.device.set_device(dev_id)
 
