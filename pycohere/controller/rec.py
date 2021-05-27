@@ -34,11 +34,13 @@ def set_lib(pkg, ndim):
             devlib = importlib.import_module('pycohere.lib.aflib').aflib3
         else:
             raise NotImplementedError
+    elif pkg == 'cp':
+        devlib = importlib.import_module('pycohere.lib.cplib').cplib
     dvut.set_lib(devlib)
 
 
 def get_norm(arr):
-    return np.sum(np.pow(np.abs(arr), 2))
+    return devlib.sum(devlib.square(devlib.absolute(arr)))
 
 
 class Pcdi:
@@ -46,14 +48,14 @@ class Pcdi:
         self.params = params
         self.kernel = coh_arr
 
-    def af_init(self, data):
+    def dev_init(self, data):
         self.dims = devlib.dims(data)
         centered = devlib.ifftshift(data).copy()
         self.roi_data = dvut.crop_center(centered, self.params.partial_coherence_roi)
         if self.params.partial_coherence_normalize:
             self.sum_roi_data = devlib.sum(devlib.square(self.roi_data))
         if self.kernel is None:
-            self.kernel = devlib.full(self.params.partial_coherence_roi, 0.5, dtype=data.dtype())
+            self.kernel = devlib.full(self.params.partial_coherence_roi, 0.5, dtype=devlib.dtype(data))
 
     def set_previous(self, abs_amplitudes):
         centered = devlib.ifftshift(abs_amplitudes).copy()
@@ -91,8 +93,8 @@ class Pcdi:
             relative_blurr = amplitudes / conv
             self.kernel = self.kernel * devlib.fftconvolve(relative_blurr, data_mirror)
         self.kernel = devlib.real(self.kernel)
-        coh_sum = devlib.sum(devlib.abs(self.kernel))
-        self.kernel = devlib.abs(self.kernel) / coh_sum
+        coh_sum = devlib.sum(devlib.absolute(self.kernel))
+        self.kernel = devlib.absolute(self.kernel) / coh_sum
         # devlib.print(self.kernel)
 
 
@@ -118,7 +120,7 @@ class Support:
         self.distribution = None
         self.prev_sigma = 0
 
-    def af_init(self):
+    def dev_init(self):
         self.support = devlib.from_numpy(self.support)
         self.dims = devlib.dims(self.support)
 
@@ -126,9 +128,9 @@ class Support:
         return self.support
 
     def get_distribution(self, dims, sigma):
-        sigmas = []
-        for i in range(len(dims)):
-            sigmas.append(dims[i] / (2.0 * np.pi * self.params.support_sigma))
+        sigmas = [dim / (2.0 * np.pi * self.params.support_sigma) for dim in dims ]
+       # for i in range(len(dims)):
+       #     sigmas.append(dims[i] / (2.0 * np.pi * self.params.support_sigma))
         dist = devlib.gaussian(dims, sigmas)
 
         return dist
@@ -152,7 +154,7 @@ class Support:
         if sigma != self.prev_sigma:
             self.distribution = self.get_distribution(self.dims, sigma)
             self.prev_sigma = sigma
-        convag = self.gauss_conv_fft(devlib.abs(ds_image))
+        convag = self.gauss_conv_fft(devlib.absolute(ds_image))
         max_convag = devlib.max(convag)
         convag = convag / max_convag
         self.support = devlib.where(self.support > 0, 0, self.support)
@@ -209,36 +211,35 @@ class Rec:
         devlib.set_backend(proc)
         if device != -1:
             devlib.set_device(device)
-
         data_r = devlib.from_numpy(data)
-        self.data = devlib.abs(data_r)
-#        print('data norm', self.get_norm(self.data))
+        self.data = devlib.absolute(data_r)
+#        print('data norm', get_norm(self.data))
         if self.params.ll_sigmas is not None:
             self.iter_data = self.data.copy()
         else:
             self.iter_data = self.data
 
         if self.params.is_pcdi:
-            self.pcdi_obj.af_init(self.data)
-        self.support_obj.af_init()
+            self.pcdi_obj.dev_init(self.data)
+        self.support_obj.dev_init()
 
-        self.dims = self.data.dims()
+        self.dims = devlib.dims(self.data)
         self.ds_image = devlib.random(self.dims, dtype=data.dtype)
 
-        norm_data = self.get_norm(self.data)
-        num_points = self.data.elements()
+        norm_data = get_norm(self.data)
+        num_points = devlib.size(self.data)
         if (first):
             max_data = devlib.max(self.data)
-            self.ds_image *= self.get_norm(self.ds_image) * max_data
+            self.ds_image *= get_norm(self.ds_image) * max_data
 
             # temp = self.support_obj.get_support().copy()
             # self.ds_image = devlib.asarray(temp, dtype=data.dtype)
 
-            print ('ds_image af type', self.ds_image.dtype())
             self.ds_image *= self.support_obj.get_support()
 
-        # print('in init , data type, norm', self.data.type(), self.get_norm(self.data))
-        # print('ds_image norm', self.get_norm(self.ds_image))
+        # print('in init , data type, norm', self.data.type(), get_norm(self.data))
+        # print('ds_image norm', get_norm(self.ds_image))
+
 
     def iterate(self):
         start_t = time.time()
@@ -248,12 +249,15 @@ class Rec:
         print('iterate took ', (time.time() - start_t), ' sec')
 
         if self.aver is not None:
-            ratio = self.get_ratio(devlib.from_numpy(self.aver), devlib.abs(self.ds_image))
+            ratio = self.get_ratio(devlib.from_numpy(self.aver), devlib.absolute(self.ds_image))
             self.ds_image *= ratio / self.aver_iter
 
-        return devlib.to_numpy(self.ds_image), devlib.to_numpy(self.support_obj.get_support()), self.errs
+        errs = [np.float(er) for er in self.errs]
+        return devlib.to_numpy(self.ds_image), devlib.to_numpy(self.support_obj.get_support()), errs
+
 
     def next(self):
+        import cupy as cp
 #        print('******** next')
         self.iter = self.iter + 1
         # the sigma used when recalculating support and data can be modified
@@ -263,6 +267,7 @@ class Rec:
             self.sigma = self.params.support_sigma
         if self.params.ll_dets is not None:
             self.iter_data = self.data
+
 
     def resolution_trigger(self):
 #        print('******** res_trig')
@@ -280,81 +285,91 @@ class Rec:
         if self.params.ll_sigmas is not None:
             self.sigma = self.params.ll_sigmas[self.iter]
 
+
     def shrink_wrap_trigger(self):
 #        print('******* shrink wrap')
         self.support_obj.update_amp(self.ds_image, self.sigma)
-        print ('shrink wrap, support norm', get_norm(self.support_obj.get_support()))
+#        print ('shrink wrap, support norm', get_norm(self.support_obj.get_support()))
+
 
     def phase_support_trigger(self):
 #        print('****** phase trig')
         self.support_obj.update_phase(self.ds_image)
 
+
     def to_reciprocal_space(self):
 #        print('******** to recip')
-        dims = self.ds_image.dims()
-        self.rs_amplitudes = devlib.ifft(self.ds_image) * self.data.elements()
-#        print('ampl norm', self.get_norm(self.rs_amplitudes))
+        dims = devlib.dims(self.ds_image)
+        self.rs_amplitudes = devlib.ifft(self.ds_image) * devlib.size(self.data)
+#        print('ampl norm', get_norm(self.rs_amplitudes))
         #  devlib.print(self.rs_amplitudes)
+
 
     def pcdi_trigger(self):
 #        print('**** pcdi trigger')
-        self.pcdi_obj.update_partial_coherence(devlib.abs(self.rs_amplitudes).copy())
+        self.pcdi_obj.update_partial_coherence(devlib.absolute(self.rs_amplitudes).copy())
+
 
     def pcdi(self):
 #        print('**** pcdi')
-        abs_amplitudes = devlib.abs(self.rs_amplitudes).copy()
+        abs_amplitudes = devlib.absolute(self.rs_amplitudes).copy()
         converged = self.pcdi_obj.apply_partial_coherence(abs_amplitudes)
-        ratio = self.get_ratio(self.iter_data, devlib.abs(converged))
-        error = self.get_norm(
-            devlib.where((converged > 0), (devlib.abs(converged) - self.iter_data), 0)) / self.get_norm(self.iter_data)
+        ratio = self.get_ratio(self.iter_data, devlib.absolute(converged))
+        error = get_norm(
+            devlib.where((converged > 0), (devlib.absolute(converged) - self.iter_data), 0)) / get_norm(self.iter_data)
         self.errs.append(error)
         self.rs_amplitudes *= ratio
 
+
     def no_pcdi(self):
 #        print('********** no pcdi')
-        ratio = self.get_ratio(self.iter_data, devlib.abs(self.rs_amplitudes))
+        ratio = self.get_ratio(self.iter_data, devlib.absolute(self.rs_amplitudes))
         # consider moving the error operation to cpu
-        error = self.get_norm(devlib.where((self.rs_amplitudes > 0), (devlib.abs(self.rs_amplitudes) - self.iter_data),
-                                           0)) / self.get_norm(self.iter_data)
+        error = get_norm(devlib.where((self.rs_amplitudes > 0), (devlib.absolute(self.rs_amplitudes) - self.iter_data),
+                                           0)) / get_norm(self.iter_data)
 #        print('error', error)
         self.errs.append(error)
         self.rs_amplitudes = self.rs_amplitudes * ratio
 #        print ('rs_ampl norm', get_norm(self.rs_amplitudes))
 
+
     def set_prev_pcdi_trigger(self):
 #        print('***** set prev')
-        self.pcdi_obj.set_previous(devlib.abs(self.rs_amplitudes).copy())
+        self.pcdi_obj.set_previous(devlib.absolute(self.rs_amplitudes).copy())
+
 
     def to_direct_space(self):
 #        print('********** to direct')
-        dims = self.rs_amplitudes.dims()
-        self.ds_image_raw = devlib.fft(self.rs_amplitudes) / self.data.elements()
-#        print('image_raw norm', self.get_norm(self.ds_image_raw))
+        dims = devlib.dims(self.rs_amplitudes)
+        self.ds_image_raw = devlib.fft(self.rs_amplitudes) / devlib.size(self.data)
+#        print('image_raw norm', get_norm(self.ds_image_raw))
         #   devlib.print(self.ds_image_raw)
 
+
     def er(self):
-        print('********** er')
+#        print('********** er')
         self.ds_image = self.ds_image_raw * self.support_obj.get_support()
-#        print('image norm', self.get_norm(self.ds_image))
+#        print('image norm', get_norm(self.ds_image))
+
 
     def hio(self):
-        print('*********** hio')
-#        print('image, image_raw norm', self.get_norm(self.ds_image), self.get_norm(self.ds_image_raw))
+#        print('*********** hio')
+#        print('image, image_raw norm', get_norm(self.ds_image), get_norm(self.ds_image_raw))
         #adj_calc_image = self.ds_image_raw
         adj_calc_image = self.ds_image_raw * self.params.beta
-#        print('adj_calc_image', self.get_norm(adj_calc_image))
+#        print('adj_calc_image', get_norm(adj_calc_image))
         combined_image = self.ds_image - adj_calc_image
-#        print('combined image norm', self.get_norm(combined_image))
+#        print('combined image norm', get_norm(combined_image))
         support = self.support_obj.get_support()
-#        print('support', self.get_norm(support))
+#        print('support', get_norm(support))
         self.ds_image = devlib.where((support > 0), self.ds_image_raw, combined_image)
-#        print('image norm', self.get_norm(self.ds_image))
+#        print('image norm', get_norm(self.ds_image))
+
 
     def twin_trigger(self):
 #        print('******** twin trig')
         # mass center self.ds_image
         com = devlib.center_of_mass(self.ds_image)
-        print('com',com)
         self.ds_image = devlib.shift(self.ds_image, com)
         dims = self.ds_image.shape
         half_x = int((dims[0] + 1) / 2)
@@ -369,30 +384,26 @@ class Rec:
             self.ds_image[:, : half_y, :] = 0
 #        print ('ds_image norm', get_norm(self.ds_image))
 
+
     def average_trigger(self):
 #        print('------aver trig')
         if self.aver is None:
-            self.aver = devlib.to_numpy(devlib.abs(self.ds_image))
+            self.aver = devlib.to_numpy(devlib.absolute(self.ds_image))
             self.aver_iter = 1
         else:
-            self.aver = self.aver + devlib.to_numpy(devlib.abs(self.ds_image))
+            self.aver = self.aver + devlib.to_numpy(devlib.absolute(self.ds_image))
             self.aver_iter += 1
+
 
     def progress_trigger(self):
         print('------iter', self.iter, '   error ', self.errs[-1])
 
+
     def get_ratio(self, divident, divisor):
         divisor_copy = divisor.copy()
-        devlib.replace(divisor_copy, divisor_copy != 0.0, 1.0)
+        divisor_copy = devlib.where((divisor_copy != 0.0), divisor_copy, 1.0)
         ratio = divident / divisor_copy
         return ratio
-
-    def get_norm(self, arr):
-        return devlib.sum(devlib.square(devlib.abs(arr)))
-
-
-def get_norm(arr):
-    return devlib.sum(devlib.square(devlib.abs(arr)))
 
 
 def fast_module_reconstruction(proc, device, params, data, image=None, support=None, coherence=None):
@@ -436,13 +447,12 @@ def fast_module_reconstruction(proc, device, params, data, image=None, support=N
     d_type = np.float32
     data = np.fft.fftshift(data).astype(d_type)
 #    print(data.shape)
-    set_lib('af', len(data.shape))
+    set_lib('cp', len(data.shape))
 
     worker = Rec(params, data.shape, (image is None))
     worker.dev_init(proc, device, data, (image is None))
     image, support, err = worker.iterate()
-
-    mx = np.abs(image).max()
+    mx = np.absolute(image).max()
     image = image / mx
 
     return image, support, None, err

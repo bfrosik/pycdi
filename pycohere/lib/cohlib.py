@@ -12,7 +12,10 @@ class cohlib:
     def from_numpy(arr):
         pass
 
-    def asarray(arr, dtype):
+    def dtype(arr):
+        pass
+
+    def size(arr):
         pass
 
     def fftshift(arr):
@@ -40,7 +43,7 @@ class cohlib:
         # get array dimensions
         pass
 
-    def abs(arr):
+    def absolute(arr):
         pass
 
     def square(arr):
@@ -68,23 +71,6 @@ class cohlib:
         pass
 
     def print(arr, **kwargs):
-        pass
-
-    def replace(lhs, cond, rhs):
-        #    Select elements from one of two arrays based on condition.
-        #
-        #    Parameters:
-        #    lhs : af.Array or scalar
-        #
-        #    numerical array whose elements are replaced with rhs when conditional element is False
-        #
-        #    cond : af.Array
-        #
-        #    Conditional array
-        #
-        #    rhs : af.Array or scalar
-        #
-        #    numerical array whose elements are picked when conditional element is False
         pass
 
     def arctan2(arr1, arr2):

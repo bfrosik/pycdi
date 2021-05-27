@@ -17,13 +17,11 @@ class aflib(cohlib):
     def from_numpy(arr):
         return af.np_to_af_array(arr.T)
 
-    def asarray(arr, dtype):
-        if dtype == np.float32:
-            return arr.as_type(af.Dtype.c32)
-        elif dtype == np.float64:
-            return arr.as_type(af.Dtype.c64)
-        else:
-            return arr
+    def dtype(arr):
+        return arr.dtype()
+
+    def size(arr):
+        return arr.elements()
 
     def random(shape, **kwargs):
         import time
@@ -33,19 +31,9 @@ class aflib(cohlib):
         for i in range(len(shape)):
             dims[i] = shape[i]
 
-        if 'dtype' in kwargs:
-            if kwargs['dtype'] == np.float32:
-                dtype = af.Dtype.c32
-            elif kwargs['dtype'] == np.float64:
-                dtype = af.Dtype.c64
-            else:
-                dtype = af.Dtype.c32
-        else:
-            dtype = af.Dtype.c32
-
         eng = af.random.Random_Engine(engine_type=af.RANDOM_ENGINE.DEFAULT,
                                       seed=int(time.time() * 1000000) * os.getpid() + os.getpid())
-        return af.random.randn(dims[0], dims[1], dims[2], dims[3], dtype=dtype, engine=eng)
+        return af.random.randn(dims[0], dims[1], dims[2], dims[3], dtype=af.Dtype.c32, engine=eng)
 
     def fftshift(arr):
         raise NotImplementedError
@@ -72,7 +60,7 @@ class aflib(cohlib):
         # get array dimensions
         return arr.dims()
 
-    def abs(arr):
+    def absolute(arr):
         return af.abs(arr)
 
     def sqrt(arr):
@@ -95,9 +83,6 @@ class aflib(cohlib):
 
     def print(arr, **kwargs):
         af.display(arr)
-
-    def replace(lhs, cond, rhs):
-        return af.replace(lhs, cond, rhs)
 
     def arctan2(arr1, arr2):
         return af.atan2(arr1, arr2)
@@ -155,20 +140,6 @@ class aflib1(aflib):
     def ifft(arr):
         return af.ifft(arr)
 
-    # def random(dims, **kwargs):
-    #     import time
-    #     import os
-    #
-    #     if 'dtype' in kwargs:
-    #         print('in random, dtype', kwargs['dtype'])
-    #         dtype = kwargs['dtype']
-    #     else:
-    #         print ('no dtype')
-    #         dtype = af.Dtype.c32
-    #     eng = af.random.Random_Engine(engine_type=af.RANDOM_ENGINE.DEFAULT,
-    #                                   seed=int(time.time() * 1000000) * os.getpid() + os.getpid())
-    #     return af.random.randn(dims[0], dtype=dtype, engine=eng)
-
     def flip(arr, axis=None):
         if axis is None:
             return af.flip(arr, 0)
@@ -203,23 +174,6 @@ class aflib2(aflib):
     def ifft(arr):
         return af.ifft2(arr)
 
-    # def random(dims, **kwargs):
-    #     import time
-    #     import os
-    #
-    #     if 'dtype' in kwargs:
-    #         if kwargs['dtype'] == np.float32:
-    #             dtype = af.Dtype.f32
-    #         elif kwargs['dtype'] == np.float64:
-    #             dtype = af.Dtype.f64
-    #         else:
-    #             dtype = af.Dtype.c32
-    #     else:
-    #         dtype = af.Dtype.c32
-    #     eng = af.random.Random_Engine(engine_type=af.RANDOM_ENGINE.DEFAULT,
-    #                                   seed=int(time.time() * 1000000) * os.getpid() + os.getpid())
-    #     return af.random.randn(dims[0], dims[1], dtype=dtype, engine=eng)
-    #
     def flip(arr, axis=None):
         if axis is None:
             return af.flip(af.flip(arr, 0), 1)
@@ -257,28 +211,6 @@ class aflib3(aflib):
     def ifft(arr):
         return af.ifft3(arr)
 
-    # def random(shape, **kwargs):
-    #     import time
-    #     import os
-    #
-    #     dims = [None, None, None, None]
-    #     for i in range(len(shape)):
-    #         dims[i] = shape[i]
-    #
-    #     if 'dtype' in kwargs:
-    #         if kwargs['dtype'] == np.float32:
-    #             dtype = af.Dtype.f32
-    #         elif kwargs['dtype'] == np.float64:
-    #             dtype = af.Dtype.f64
-    #         else:
-    #             dtype = af.Dtype.c32
-    #     else:
-    #         dtype = af.Dtype.c32
-    #
-    #     eng = af.random.Random_Engine(engine_type=af.RANDOM_ENGINE.DEFAULT,
-    #                                   seed=int(time.time() * 1000000) * os.getpid() + os.getpid())
-    #     return af.random.randn(dims[0], dims[1], dims[2], dims[3], dtype=dtype, engine=eng)
-    #
     def flip(arr, axis=None):
         if axis is None:
             return af.flip(af.flip(af.flip(arr, 0), 1), 2)
