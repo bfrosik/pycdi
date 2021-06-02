@@ -1,4 +1,3 @@
-results_dir = "/Users/bfrosik/pycohere/workspace/scan_54/results"
 energy = 9.0
 delta = 32.174
 gamma = 12.6346
@@ -10,5 +9,5 @@ scanmot = "th"
 scanmot_del = 0.005
 detector = "34idcTIM2"
 diffractometer = "34idc"
-crop = (0.75,0.75,0.75)
+crop = (0.5,0.5,0.5)
 rampups = 1
