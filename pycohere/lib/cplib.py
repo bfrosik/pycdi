@@ -20,11 +20,20 @@ class cplib(cohlib):
     def from_numpy(arr):
         return cp.array(arr.T)
 
+    def save(filename, arr):
+        cp.save(filename, arr)
+
+    def load(filename):
+        return cp.load(filename)
+
     def dtype(arr):
         return arr.dtype
 
     def size(arr):
         return arr.size
+
+    def hasnan(arr):
+        return cp.any(cp.isnan(arr))
 
     def random(shape, **kwargs):
         import time
@@ -70,8 +79,8 @@ class cplib(cohlib):
     def square(arr):
         return cp.square(arr)
 
-    def sum(arr):
-        return cp.sum(arr)
+    def sum(arr, axis=None):
+        return cp.sum(arr, axis)
 
     def real(arr):
         return cp.real(arr)
@@ -79,14 +88,26 @@ class cplib(cohlib):
     def imag(arr):
         return cp.imag(arr)
 
-    def max(arr):
+    def amax(arr):
         return cp.amax(arr)
+
+    def argmax(arr, axis=None):
+        return cp.argmax(arr, axis)
+
+    def maximum(arr1, arr2):
+        return cp.maximum(arr1, arr2)
+
+    def ceil(arr):
+        return cp.ceil(arr)
+
+    def fix(arr):
+        return cp.fix(arr)
 
     def print(arr, **kwargs):
         print(arr)
 
-    def arctan2(arr1, arr2):
-        return cp.arctan2(arr1, arr2)
+    def angle(arr):
+        return cp.angle(arr)
 
     def flip(arr, axis=None):
         return cp.flip(arr, axis)
@@ -100,3 +121,12 @@ class cplib(cohlib):
 
     def center_of_mass(inarr):
         return cpx.scipy.ndimage.center_of_mass(cp.absolute(inarr))
+
+    def exp(arr):
+        return cp.exp(arr)
+
+    def conj(arr):
+        return cp.conj(arr)
+
+    def save(file, arr):
+        cp.save(file, arr)

@@ -14,14 +14,23 @@ class nplib(cohlib):
     def to_numpy(arr):
         return arr
 
+    def load(filename):
+        return np.load(filename)
+
     def from_numpy(arr):
         return arr
+
+    def save(filename, arr):
+        np.save(filename, arr)
 
     def dtype(arr):
         return arr.dtype
 
     def size(arr):
         return arr.size
+
+    def hasnan(arr):
+        return np.any(np.isnan(arr))
 
     def random(shape, **kwargs):
         import time
@@ -70,8 +79,8 @@ class nplib(cohlib):
     def square(arr):
         return np.square(arr)
 
-    def sum(arr):
-        return np.sum(arr)
+    def sum(arr, axis=None):
+        return np.sum(arr, axis)
 
     def real(arr):
         return np.real(arr)
@@ -79,14 +88,26 @@ class nplib(cohlib):
     def imag(arr):
         return np.imag(arr)
 
-    def max(arr):
+    def amax(arr):
         return np.amax(arr)
+
+    def maximum(arr1, arr2):
+        return np.maximum(arr1, arr2)
+
+    def argmax(arr, axis=None):
+        return np.argmax(arr, axis)
+
+    def ceil(arr):
+        return cp.ceil(arr)
+
+    def fix(arr):
+        return np.fix(arr)
 
     def print(arr, **kwargs):
         print(arr)
 
-    def arctan2(arr1, arr2):
-        return np.arctan2(arr1, arr2)
+    def angle(arr):
+        return np.angle(arr)
 
     def flip(arr, axis=None):
         return np.flip(arr, axis)
@@ -100,3 +121,12 @@ class nplib(cohlib):
 
     def center_of_mass(inarr):
         return scipy.ndimage.center_of_mass(np.absolute(inarr))
+
+    def exp(arr):
+        return np.exp(arr)
+
+    def conj(arr):
+        return np.conj(arr)
+
+    def save(file, arr):
+        np.save(file, arr)

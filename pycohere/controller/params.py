@@ -69,11 +69,16 @@ class Params:
         else:
             self.support_area = (.5, .5, .5)
 
+        self.gen_pcdi_start = None
         if conf.lookup('generations') is not None:
             self.generations = conf.generations
         else:
             self.generations = 1
         if self.generations > 1:
+            if conf.lookup('ga_fast') is not None:
+                self.ga_fast = conf.ga_fast
+            else:
+                self.ga_fast = False
             if conf.lookup('self.metrics') is not None:
                 self.metrics = list(conf.ga_metrics)
                 if len(self.metrics) == 1:
@@ -83,12 +88,20 @@ class Params:
             else:
                 self.metrics = ['chi', ] * self.generations
 
+            self.ga_reconstructions = []
             if conf.lookup('ga_cullings') is not None:
-                self.worst_remove_no = list(conf.ga_cullings)
-                if len(self.worst_remove_no) < self.generations:
-                    self.worst_remove_no = self.worst_remove_no + [0, ] * (self.generations - len(self.worst_remove_no))
+                worst_remove_no = list(conf.ga_cullings)
+                if len(worst_remove_no) < self.generations:
+                    worst_remove_no = self.worst_remove_no + [0, ] * (self.generations - len(self.worst_remove_no))
             else:
-                self.worst_remove_no = None
+                worst_remove_no = [0, ] * self.generations
+            # calculate how many reconstructions should continue
+            reconstructions = self.reconstructions
+            for cull in worst_remove_no:
+                reconstructions = reconstructions - cull
+                if reconstructions <= 0:
+                    return 'culled down to 0 reconstructions, check configuration'
+                self.ga_reconstructions.append(reconstructions)
 
             if conf.lookup('ga_support_thresholds') is not None:
                 self.ga_support_thresholds = list(conf.ga_support_thresholds)
@@ -146,6 +159,12 @@ class Params:
                     self.low_resolution_alg = conf.ga_low_resolution_alg
                 else:
                     self.low_resolution_alg = 'GAUSS'
+
+            if conf.lookup('pcdi_trigger') is not None:
+                if conf.lookup('gen_pcdi_start') is not None:
+                    self.gen_pcdi_start = conf.gen_pcdi_start
+                else:
+                    self.gen_pcdi_start = 0
 
         if conf.lookup('twin_trigger') is not None:
             if conf.lookup('twin_halves') is not None:

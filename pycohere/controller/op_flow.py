@@ -49,7 +49,7 @@ def algorithm_row(algorithm, algorithm_sequence):
     return row
 
 
-def get_flow_arr(params, flow_items_list, first_run):
+def get_flow_arr(params, flow_items_list, curr_gen, first_run=False):
     success, config_map = params.read_config()
     algorithm_sequence = get_alg_seq(config_map.algorithm_sequence)
     iter_no = len(algorithm_sequence)
@@ -71,9 +71,20 @@ def get_flow_arr(params, flow_items_list, first_run):
                 flow_arr[i] = trigger_row(config_map.phase_support_trigger, iter_no)
         elif flow_items_list[i] == 'pcdi_trigger':
             if config_map.lookup('pcdi_trigger') is not None:
-                flow_arr[i] = trigger_row(config_map.pcdi_trigger, iter_no)
-                pcdi_start = config_map.pcdi_trigger[0]
-                pcdi_row = i
+                if config_map.gen_pcdi_start is None:
+                    flow_arr[i] = trigger_row(config_map.pcdi_trigger, iter_no)
+                    if first_run:
+                        pcdi_start = config_map.pcdi_trigger[0]
+                    else:
+                        pcdi_start = 0
+                    pcdi_row = i
+                elif curr_gen >= config_map.gen_pcdi_start:
+                    flow_arr[i] = trigger_row(config_map.pcdi_trigger, iter_no)
+                    if curr_gen == config_map.gen_pcdi_start:
+                        pcdi_start = config_map.pcdi_trigger[0]
+                    else:
+                        pcdi_start = 0
+                    pcdi_row = i
         elif flow_items_list[i] == 'pcdi':
             if pcdi_start is not None:
                 flow_arr[i, pcdi_start:] = 1
@@ -91,7 +102,7 @@ def get_flow_arr(params, flow_items_list, first_run):
             if config_map.lookup('twin_trigger') is not None:
                 flow_arr[i] = trigger_row(config_map.twin_trigger, iter_no)
         elif flow_items_list[i] == 'average_trigger':
-            if config_map.lookup('average_trigger') is not None:
+            if config_map.lookup('average_trigger') is not None and curr_gen == config_map.generations -1:
                 flow_arr[i] = trigger_row(config_map.average_trigger, iter_no)
         elif flow_items_list[i] == 'progress_trigger':
             if config_map.lookup('progress_trigger') is not None:

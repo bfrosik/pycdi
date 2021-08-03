@@ -14,10 +14,10 @@ import os
 import pycohere.controller.reconstruction as single
 import pycohere.controller.reconstruction_multi as multi
 import pycohere.utilities.utils as ut
-import pycohere.utilities.utils_ga as gut
 import multiprocessing as mp
 import shutil
-from functools import partial
+import importlib
+import pycohere.controller.rec as calc
 from pycohere.controller.params import Params
 
 
@@ -33,6 +33,24 @@ __all__ = ['Generation.next_gen',
            'reconstruction']
 
 
+def set_lib(pkg, ndim):
+    global dvclib
+    if pkg == 'af':
+        if ndim == 1:
+            dvclib = importlib.import_module('pycohere.lib.aflib').aflib1
+        elif ndim == 2:
+            dvclib = importlib.import_module('pycohere.lib.aflib').aflib2
+        elif ndim == 3:
+            dvclib = importlib.import_module('pycohere.lib.aflib').aflib3
+        else:
+            raise NotImplementedError
+    elif pkg == 'cp':
+        dvclib = importlib.import_module('pycohere.lib.cplib').cplib
+    elif pkg == 'np':
+        dvclib = importlib.import_module('pycohere.lib.nplib').nplib
+    calc.set_lib(dvclib)
+
+
 class Generation:
     """
     This class holds fields relevant to generations according to configuration and encapsulates generation functionality.
@@ -45,7 +63,7 @@ class Generation:
         self.current_gen = 0
         self.generations = pars.generations
         self.metrics = tuple(pars.metrics)
-        self.worst_remove_no = pars.worst_remove_no
+        self.ga_reconstructions = pars.ga_reconstructions
         self.ga_support_thresholds = tuple(pars.ga_support_thresholds)
         self.ga_support_sigmas = tuple(pars.ga_support_sigmas)
         self.breed_modes = tuple(pars.breed_modes)
@@ -109,7 +127,8 @@ class Generation:
             else:
                 return np.ones(shape)
 
-    def order(self, dirs, evals):
+
+    def order_dirs(self, dirs, evals):
         """
         Orders results in generation directory in subdirectories numbered from 0 and up, the best result stored in the '0' subdirectory. The ranking is done by numbers in evals list, which are the results of the generation's metric to the image array.
 
@@ -148,145 +167,41 @@ class Generation:
             dest = os.path.join(parent_dir, last_sub.split('_')[-1])
             shutil.move(dir, dest)
 
-    def breed_one(self, alpha, breed_mode, dirs):
+
+    def order_processes(self, proc_metrics):
         """
-        Aligns the image to breed from with the alpha image, and applies breed formula, to obtain a 'child' image.
+        Orders results in generation directory in subdirectories numbered from 0 and up, the best result stored in the '0' subdirectory. The ranking is done by numbers in evals list, which are the results of the generation's metric to the image array.
 
         Parameters
         ----------
-        alpha : ndarray
-            the best image in the generation
-        breed_mode : str
-            literal defining the breeding process
-        dirs : tuple
-            a tuple containing two elements: directory where the image to breed from is stored, a 'parent', and a directory where the bred image, a 'child', will be stored.
+        dirs : list
+            list of directories where the reconstruction results files are saved
+        evals : list
+            list of evaluation of the results in the directories from the dirs list. The evaluation is a number calculated for metric configured for this generation
 
         Returns
         -------
         nothing
         """
-        (parent_dir, breed_dir) = dirs
-        image_file = os.path.join(parent_dir, 'image.npy')
-        beta = np.load(image_file)
-        beta = gut.zero_phase(beta, 0)
-        alpha = gut.check_get_conj_reflect(beta, alpha)
-        alpha_s = gut.align_arrays(beta, alpha)
-        alpha_s = gut.zero_phase(alpha_s, 0)
-        ph_alpha = np.angle(alpha_s)
-        beta = gut.zero_phase_cc(beta, alpha_s)
-        ph_beta = np.angle(beta)
-        if breed_mode == 'sqrt_ab':
-            beta = np.sqrt(abs(alpha_s) * abs(beta)) * np.exp(0.5j * (ph_beta + ph_alpha))
+        metric_type = self.metrics[self.current_gen]
+        # ranks keeps indexes of reconstructions from best to worst
+        # for most of the metric types the minimum of the metric is best, but for
+        # 'summed_phase' and 'area' it is oposite, so reversing the order
+        procs, metrics = zip(*proc_metrics)
+        ranks = np.argsort(metrics).tolist()
+        if metric_type == 'summed_phase' or metric_type == 'area':
+            ranks.reverse()
+        proc_ranks = list(zip(procs, ranks))
+        return proc_ranks
 
-        elif breed_mode == 'dsqrt':
-            amp = pow(abs(beta), .5)
-            beta = amp * np.exp(1j * ph_beta)
 
-        elif breed_mode == 'pixel_switch':
-            cond = np.random.random_sample(beta.shape)
-            beta = np.where((cond > 0.5), beta, alpha_s)
-
-        elif breed_mode == 'b_pa':
-            beta = abs(beta) * np.exp(1j * (ph_alpha))
-
-        elif breed_mode == '2ab_a_b':
-            beta = 2 * (beta * alpha_s) / (beta + alpha_s)
-
-        elif breed_mode == '2a_b_pa':
-            beta = (2 * abs(alpha_s) - abs(beta)) * np.exp(1j * ph_alpha)
-
-        elif breed_mode == 'sqrt_ab_pa':
-            beta = np.sqrt(abs(alpha_s) * abs(beta)) * np.exp(1j * ph_alpha)
-
-        elif breed_mode == 'sqrt_ab_pa_recip':
-            temp1 = np.fft.fftshift(np.fft.fftn(np.fft.fftshift(beta)))
-            temp2 = np.fft.fftshift(np.fft.fftn(np.fft.fftshift(alpha_s)))
-            temp = np.sqrt(abs(temp1) * abs(temp2)) * np.exp(1j * np.angle(temp2))
-            beta = np.fft.fftshift(np.fft.ifftn(np.fft.fftshift(temp)))
-
-        elif breed_mode == 'sqrt_ab_recip':
-            temp1 = np.fft.fftshift(np.fft.fftn(np.fft.fftshift(beta)))
-            temp2 = np.fft.fftshift(np.fft.fftn(np.fft.fftshift(alpha_s)))
-            temp = np.sqrt(abs(temp1) * abs(temp2)) * np.exp(.5j * np.angle(temp1)) * np.exp(.5j * np.angle(temp2))
-            beta = np.fft.fftshift(np.fft.ifftn(np.fft.fftshift(temp)))
-
-        elif breed_mode == 'max_ab':
-            beta = np.maximum(abs(alpha_s), abs(beta)) * np.exp(.5j * (ph_beta + ph_alpha))
-
-        elif breed_mode == 'max_ab_pa':
-            beta = np.maximum(abs(alpha_s), abs(beta)) * np.exp(1j * ph_alpha)
-
-        elif breed_mode == 'min_ab_pa':
-            beta = np.minimum(abs(alpha_s), abs(beta)) * np.exp(1j * ph_alpha)
-
-        elif breed_mode == 'avg_ab':
-            beta = 0.5 * (alpha_s + beta)
-
-        elif breed_mode == 'avg_ab_pa':
-            beta = 0.5 * (abs(alpha_s) + abs(beta)) * np.exp(1j * (ph_alpha))
-
-        # save beta in the breeding sub-dir
-        if not os.path.exists(breed_dir):
-            os.makedirs(breed_dir)
-
-        np.save(os.path.join(breed_dir, 'image.npy'), beta)
-        sigma = self.ga_support_sigmas[self.current_gen]
-        threshold = self.ga_support_thresholds[self.current_gen]
-        new_support = ut.shrink_wrap(beta, threshold, sigma)
-        np.save(os.path.join(breed_dir, 'support.npy'), new_support)
-
-    def breed(self, breed_dir, dirs):
-        """
-        Breeds next generation.
-
-        Removes worst results from previous generation if configured, ans breeds according to the breeding mode. The breeding is processed concurrently.
-
-        Parameters
-        ----------
-        breed_dir : str
-            a directory where subdirectories with 'child' images will be created
-        dirs : tuple
-            list of directories where the image to breed from is stored, a 'parent', ordered from best to worst
-
-        Returns
-        -------
-        breed_dirs : list
-            list of directories containing 'child' images
-        """
-        breed_mode = self.breed_modes[self.current_gen]
-        if breed_mode == 'none':
-            return dirs
-
+    def cull(self, lst):
         print('breeding generation ', (self.current_gen + 1))
 
-        if self.worst_remove_no is not None:
-            dirs = dirs[0:len(dirs) - self.worst_remove_no[self.current_gen]]
-
-        alpha = np.load(os.path.join(dirs[0], 'image.npy'))
-        alpha = gut.zero_phase(alpha, 0)
-        # assign breed directory for each bred child
-        iterable = []
-        breed_dirs = []
-        for i in range(len(dirs)):
-            breed_dirs.append(os.path.join(breed_dir, str(i)))
-            iterable.append((dirs[i], breed_dirs[i]))
-
-        # copy the alpha to the first breeding sub-dir
-        if not os.path.exists(breed_dirs[0]):
-            os.makedirs(breed_dirs[0])
-
-        shutil.copyfile(os.path.join(dirs[0], 'image.npy'), os.path.join(breed_dirs[0], 'image.npy'))
-        shutil.copyfile(os.path.join(dirs[0], 'support.npy'), os.path.join(breed_dirs[0], 'support.npy'))
-
-        no_processes = min(len(dirs), mp.cpu_count())
-        func = partial(self.breed_one, alpha, breed_mode)
-        with mp.Pool(processes=no_processes) as pool:
-            pool.map_async(func, iterable[1:])
-            pool.close()
-            pool.join()
-            pool.terminate()
-
-        return breed_dirs
+        if len(lst) <= self.ga_reconstructions[self.current_gen + 1]:
+            return lst
+        else:
+            return lst[0:self.ga_reconstructions[self.current_gen + 1]]
 
 
 def reconstruction(proc, conf_file, datafile, dir, devices):
@@ -314,13 +229,37 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
     -------
     nothing
     """
-    data = ut.read_tif(datafile)
-    print('data shape', data.shape)
+    back = 'np'
 
     pars = Params(conf_file)
     er_msg = pars.set_params()
     if er_msg is not None:
         return er_msg
+
+    if back == 'af':
+        if datafile.endswith('tif') or datafile.endswith('tiff'):
+            try:
+                data = ut.read_tif(datafile)
+            except:
+                print ('could not load data file', datafile)
+                return
+        elif datafile.endswith('npy'):
+            try:
+                data = np.load(datafile)
+            except:
+                print ('could not load data file', datafile)
+                return
+        else:
+            print ('no data file found')
+            return
+        print('data shape', data.shape)
+        n_dim = len(data.shape)
+    else:
+        n_dim = None
+
+    set_lib(back, n_dim)
+
+    dvclib.set_backend(proc)
 
     try:
         reconstructions = pars.reconstructions
@@ -334,34 +273,102 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
     except AttributeError:
         filename = conf_file.split('/')[-1]
         save_dir = os.path.join(dir, filename.replace('config_rec', 'results'))
-    temp_dir = os.path.join(save_dir, 'temp')
+#    temp_dir = os.path.join(save_dir, 'temp')
 
     generations = pars.generations
 
     # init starting values
     # if multiple reconstructions configured (typical for genetic algorithm), use "reconstruction_multi" module
     if reconstructions > 1:
-        rec = multi
-        temp_dirs = []
-        for _ in range(reconstructions):
-            temp_dirs.append(None)
-        for g in range(generations):
-            gen_data = gen_obj.get_data(data)
-            gen_save_dir = os.path.join(save_dir, 'g_' + str(g))
-            m = gen_obj.metrics[g]
-            save_dirs, evals = rec.multi_rec(gen_save_dir, proc, gen_data, pars, devices, temp_dirs, m)
+        if pars.ga_fast:  # NEW the number of processes is the same as available GPUs (can be same GPU if can fit more recs)
+            reconstructions = min(reconstructions, len(devices))
+            workers = [calc.Rec(pars, datafile) for _ in range(reconstructions)]
+            for worker in workers:
+                worker.init_dev(devices.pop())
+            processes = {}
 
-            # results are saved in a list of directories - save_dir
-            # it will be ranked, and moved to temporary ranked directories
-            gen_obj.order(save_dirs, evals)
+            for worker in workers:
+                worker_qin = mp.Queue()
+                worker_qout = mp.Queue()
+                process = mp.Process(target=worker.fast_ga, args=(worker_qin, worker_qout))
+                process.start()
+                processes[process.pid] = [process, worker_qin, worker_qout]
+                print('creating process', process.pid)
 
-            if g < generations - 1 and len(save_dirs) > 1:
-                temp_dirs = gen_obj.breed(temp_dir, save_dirs)
+            for g in range(generations):
+                gen_save_dir = os.path.join(save_dir, 'g_' + str(g))
+                bad_processes = []
+                for pid in processes:
+                    worker_qin = processes[pid][1]
+                    worker_qin.put(('init', None, g))
+                for pid in processes:
+                    worker_qout = processes[pid][2]
+                    ret = worker_qout.get()
+                if g > 0:
+                    for pid in processes:
+                        worker_qin = processes[pid][1]
+                        worker_qin.put('breed')
+                    for pid in processes:
+                        worker_qout = processes[pid][2]
+                        ret = worker_qout.get()
+                for pid in processes:
+                    worker_qin = processes[pid][1]
+                    worker_qin.put('iterate')
+                for pid in processes:
+                    worker_qout = processes[pid][2]
+                    ret = worker_qout.get()
+                    if ret < 0:
+                        bad_processes.append(pid)
+                # remove bad processes from dict and terminate them (in the future we may reuse them)
+                for pid in bad_processes:
+                    processes[pid][0].terminate()
+                    processes.pop(pid)
+                # get metric, i.e the goodness of reconstruction from each run
+                proc_metrics = []
+                for pid in processes:
+                    worker_qin = processes[pid][1]
+                    worker_qin.put('get_metric')
+                for pid in processes:
+                    worker_qout = processes[pid][2]
+                    metric = worker_qout.get()
+                    proc_metrics.append(pid, metric)
+                # order processes by metric
+                proc_ranks = gen_obj.order_processes(proc_metrics)
+                # cull
+                culled_proc_ranks = gen_obj.cull(proc_ranks)
+                # remove culled processes from list and terminate them (in the future we may reuse them)
+                for i in range(len(culled_proc_ranks), len(proc_ranks)):
+                    pid = proc_ranks[i][0]
+                    processes[pid][0].terminate()
+                    processes.pop(pid)
+                # save results, we may modify it later to save only some
+                for pr in culled_proc_ranks:
+                    pid, rank = pr
+                    worker_qin = processes[pid][1]
+                    worker_qin.put(('save_res', os.path.join(gen_save_dir, str(rank))))
+                for pid in processes:
+                    worker_qout = processes[pid][2]
+                    ret = worker_qout.get()
+                gen_obj.next_gen()
+            for pid in processes:
+                worker_qin = processes[pid][1]
+                worker_qin.put('done')
+        else:
+            rec = multi
+            prev_dirs = []
+            for _ in range(reconstructions):
+                prev_dirs.append(None)
+            for g in range(generations):
+                gen_save_dir = os.path.join(save_dir, 'g_' + str(g))
+                metric_type = gen_obj.metrics[g]
+                workers = [calc.Rec(pars, datafile) for _ in range(len(prev_dirs))]
+                prev_dirs, evals = rec.multi_rec(gen_save_dir, pars, devices, workers, prev_dirs, metric_type, g)
 
-            gen_obj.next_gen()
-        # remove temp dir
-        if os.path.isdir(temp_dir):
-            shutil.rmtree(temp_dir)
+                # results are saved in a list of directories - save_dir
+                # it will be ranked, and moved to temporary ranked directories
+                gen_obj.order_dirs(prev_dirs, evals)
+                prev_dirs = gen_obj.cull(prev_dirs)
+                gen_obj.next_gen()
     else:
         image = None
         support = None
@@ -370,13 +377,11 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
 
         for g in range(generations):
             gen_data = gen_obj.get_data(data)
-            image, support, coh, err, recip, flows, iter_arrs = rec.single_rec(proc, gen_data, pars,
+            ret_code = rec.single_rec(proc, os.path.join(save_dir, 'g_' + str(g)), gen_data, pars,
                                                                                devices[0], image, support, coh)
-            if image is None:
+            if ret_code != 0:
                 return
-            # save the generation results
-            gen_save_dir = os.path.join(save_dir, 'g_' + str(g))
-            ut.save_results(image, support, coh, err, recip, flows, iter_arrs, gen_save_dir)
+
             gen_obj.next_gen()
 
     print('done gen')

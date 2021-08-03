@@ -10,6 +10,7 @@ This module controls a single reconstruction process.
 
 import numpy as np
 import os
+import importlib
 import pycohere.controller.rec as calc
 import pycohere.utilities.utils as ut
 from pycohere.controller.params import Params
@@ -21,7 +22,25 @@ __all__ = ['single_rec',
            'reconstruction']
 
 
-def single_rec(proc, data, pars, dev, image, support, coh):
+def set_lib(pkg, ndim):
+    global devlib
+    if pkg == 'af':
+        if ndim == 1:
+            devlib = importlib.import_module('pycohere.lib.aflib').aflib1
+        elif ndim == 2:
+            devlib = importlib.import_module('pycohere.lib.aflib').aflib2
+        elif ndim == 3:
+            devlib = importlib.import_module('pycohere.lib.aflib').aflib3
+        else:
+            raise NotImplementedError
+    elif pkg == 'cp':
+        devlib = importlib.import_module('pycohere.lib.cplib').cplib
+    elif pkg == 'np':
+        devlib = importlib.import_module('pycohere.lib.nplib').nplib
+    calc.set_lib(devlib)
+
+
+def single_rec(proc, save_dir, data, pars, dev, continue_dir=None):
     """
     This function starts reconstruction and returns results.
 
@@ -65,11 +84,17 @@ def single_rec(proc, data, pars, dev, image, support, coh):
     iter_array : ndarray
         info to scientist/developer; an array of 0s and 1s, 1 meaning the function in flow will be executed in iteration, 0 otherwise
     """
-    image, support, coh, er = calc.fast_module_reconstruction(proc, dev, pars, data, image, support, coh)
-
-    # errs contain errors for each iteration
-    return image, support, coh, er
-
+    # devlib.set_backend(proc)
+    # if dev != -1:
+    #     devlib.set_device(dev)
+    #
+    # worker = calc.Rec(pars, devlib.from_numpy(devlib.absolute(data)), continue_dir)
+    # ret_code = worker.iterate()
+    # if ret_code != 0:
+    #     worker.save_res(save_dir)
+    #
+    # return ret_code
+    #
 
 def reconstruction(proc, conf_file, datafile, dir, dev):
     """
@@ -100,22 +125,42 @@ def reconstruction(proc, conf_file, datafile, dir, dev):
     -------
     nothing
     """
-    data = ut.read_tif(datafile)
-    print('data shape', data.shape)
+    back = 'np'
 
     pars = Params(conf_file)
     er_msg = pars.set_params()
     if er_msg is not None:
         return er_msg
 
+    if back == 'af':
+        if datafile.endswith('tif') or datafile.endswith('tiff'):
+            try:
+                data = ut.read_tif(datafile)
+            except:
+                print ('could not load data file', datafile)
+                return
+        elif datafile.endswith('npy'):
+            try:
+                data = np.load(datafile)
+            except:
+                print ('could not load data file', datafile)
+                return
+        else:
+            print ('no data file found')
+            return
+        print('data shape', data.shape)
+        n_dim = len(data.shape)
+    else:
+        n_dim = None
+
+    set_lib(back, n_dim)
+
+    devlib.set_backend(proc)
+
     if not pars.cont:
-        image = None
-        support = None
-        coh = None
-    print('proc, data, pars, dev[0], image, support, coh',proc, data.shape, pars, dev[0], image, support, coh)
-    image, support, coh, errs = single_rec(proc, data, pars, dev[0], image, support, coh)
-    if image is None:
-        return
+        cnt_dir = None
+    else:
+        cnt_dir = pars.continue_dir
 
     try:
         save_dir = pars.save_dir
@@ -123,4 +168,20 @@ def reconstruction(proc, conf_file, datafile, dir, dev):
         filename = conf_file.split('/')[-1]
         save_dir = os.path.join(dir, filename.replace('config_rec', 'results'))
 
-    ut.save_results(image, support, coh, np.asarray(errs), save_dir)
+    worker = calc.Rec(pars, datafile)
+
+    try:
+        worker.init_dev(dev)
+    except EnvironmentError:
+        print ('cannot load on device ID', dev)
+        return
+    except ValueError:
+        print('could not load data file', datafile)
+        return
+
+    worker.init(cnt_dir)
+    ret_code = worker.iterate()
+    if ret_code == 0:
+        worker.save_res(save_dir)
+
+

@@ -9,6 +9,8 @@ This module controls the multi reconstruction process.
 """
 
 import os
+import numpy as np
+import importlib
 import pycohere.utilities.utils as ut
 import pycohere.controller.rec as calc
 from multiprocessing import Pool, Queue
@@ -25,7 +27,25 @@ __all__ = ['single_rec_process',
            'reconstruction']
 
 
-def single_rec_process(proc, params, data, req_metric, dirs):
+def set_lib(pkg, ndim):
+    global devlib
+    if pkg == 'af':
+        if ndim == 1:
+            devlib = importlib.import_module('pycohere.lib.aflib').aflib1
+        elif ndim == 2:
+            devlib = importlib.import_module('pycohere.lib.aflib').aflib2
+        elif ndim == 3:
+            devlib = importlib.import_module('pycohere.lib.aflib').aflib3
+        else:
+            raise NotImplementedError
+    elif pkg == 'cp':
+        devlib = importlib.import_module('pycohere.lib.cplib').cplib
+    elif pkg == 'np':
+        devlib = importlib.import_module('pycohere.lib.nplib').nplib
+    calc.set_lib(devlib)
+
+
+def single_rec_process(params, metric_type, gen, worker, prev_dir, save_dir):
     """
     This function runs a single reconstruction process.
 
@@ -51,20 +71,28 @@ def single_rec_process(proc, params, data, req_metric, dirs):
     metric : float
         a calculated characteristic of the image array defined by the metric
     """
-    (prev, save_dir) = dirs
-    if prev is None:
-        prev_image = None
-        prev_support = None
-        prev_coh = None
-    else:
-        prev_image, prev_support, prev_coh = ut.read_results(prev)
 
-    image, support, coh, errs = calc.fast_module_reconstruction(proc, gpu, params, data, prev_image,
-                                                                prev_support, prev_coh)
+    try:
+        worker.init_dev(gpu)
+    except EnvironmentError:
+        print('cannot load on device ID', gpu)
+        return
+    except ValueError:
+        print('could not load data file')
+        return
+    worker.init(prev_dir, gen)
 
-    metric = ut.get_metric(image, errs)
-    ut.save_results(image, support, coh, errs, save_dir, metric)
-    return metric[req_metric]
+    if gen is not None and gen > 0:
+        worker.breed()
+
+    ret_code = worker.iterate()
+    if ret_code == 0:
+        worker.save_res(save_dir)
+        metric = worker.get_metric(metric_type)
+    else:    # bad reconstruction
+        metric = None
+    worker = None    # TODO check if this clear the GPU
+    return metric
 
 
 def assign_gpu(*args):
@@ -85,7 +113,7 @@ def assign_gpu(*args):
     gpu = q.get()
 
 
-def multi_rec(save_dir, proc, data, pars, devices, prev_dirs, metric='chi'):
+def multi_rec(save_dir, pars, devices, workers, prev_dirs, metric_type='chi', gen=None):
     """
     This function controls the multiple reconstructions.
 
@@ -127,13 +155,13 @@ def multi_rec(save_dir, proc, data, pars, devices, prev_dirs, metric='chi'):
 
     iterable = []
     save_dirs = []
-    reconstructions = pars.reconstructions
-    for i in range(reconstructions):
+
+    for i in range(len(workers)):
         save_sub = os.path.join(save_dir, str(i))
         save_dirs.append(save_sub)
-        iterable.append((prev_dirs[i], save_sub))
-
-    func = partial(single_rec_process, proc, pars, data, metric)
+        iterable.append(workers[i], prev_dirs[i], save_sub)
+    print('iterable', iterable)
+    func = partial(single_rec_process, pars, metric_type, gen)
     q = Queue()
     for device in devices:
         q.put(device)
@@ -145,7 +173,12 @@ def multi_rec(save_dir, proc, data, pars, devices, prev_dirs, metric='chi'):
         pool.join()
         pool.terminate()
 
-    # return only error from last iteration for each reconstruction
+    # remove the unsuccessful reconstructions
+    for i, e in reversed(list(enumerate(evals))):
+        if e is None:
+            evals.pop(i)
+            save_dirs.pop(i)
+
     return save_dirs, evals
 
 
@@ -174,13 +207,37 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
     -------
     nothing
     """
-    data = ut.read_tif(datafile)
-    print('data shape', data.shape)
+    back = 'np'
 
     pars = Params(conf_file)
     er_msg = pars.set_params()
     if er_msg is not None:
         return er_msg
+
+    if back == 'af':
+        if datafile.endswith('tif') or datafile.endswith('tiff'):
+            try:
+                data = ut.read_tif(datafile)
+            except:
+                print ('could not load data file', datafile)
+                return
+        elif datafile.endswith('npy'):
+            try:
+                data = np.load(datafile)
+            except:
+                print ('could not load data file', datafile)
+                return
+        else:
+            print ('no data file found')
+            return
+        print('data shape', data.shape)
+        n_dim = len(data.shape)
+    else:
+        n_dim = None
+
+    set_lib(back, n_dim)
+
+    devlib.set_backend(proc)
 
     try:
         reconstructions = pars.reconstructions
@@ -202,6 +259,8 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
     except AttributeError:
         filename = conf_file.split('/')[-1]
         save_dir = os.path.join(dir, filename.replace('config_rec', 'results'))
+#    print ('prev_dirs',prev_dirs)
 
-    save_dirs, evals = multi_rec(save_dir, proc, data, pars, devices, prev_dirs)
+    workers = [calc.Rec(pars, datafile) for _ in range(reconstructions)]
 
+    save_dirs, evals = multi_rec(save_dir, pars, datafile, devices, workers, prev_dirs)

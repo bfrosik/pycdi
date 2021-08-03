@@ -1,5 +1,8 @@
 class cohlib:
     # Interface
+    def is_af(self):
+        return False
+
     def set_device(dev_id):
         pass
 
@@ -9,6 +12,12 @@ class cohlib:
     def to_numpy(arr):
         pass
 
+    def save(filename, arr):
+        pass
+
+    def load(filename):
+        pass
+
     def from_numpy(arr):
         pass
 
@@ -16,6 +25,9 @@ class cohlib:
         pass
 
     def size(arr):
+        pass
+
+    def hasnan(arr):
         pass
 
     def fftshift(arr):
@@ -52,7 +64,7 @@ class cohlib:
     def sqrt(arr):
         pass
 
-    def sum(arr):
+    def sum(arr, axis=None):
         pass
 
     def real(arr):
@@ -61,7 +73,19 @@ class cohlib:
     def imag(arr):
         pass
 
-    def max(arr):
+    def amax(arr):
+        pass
+
+    def argmax(arr, axis=None):
+        pass
+
+    def maximum(arr1, arr2):
+        pass
+
+    def ceil(arr):
+        pass
+
+    def fix(arr):
         pass
 
     def random(shape, **kwargs):
@@ -73,7 +97,7 @@ class cohlib:
     def print(arr, **kwargs):
         pass
 
-    def arctan2(arr1, arr2):
+    def angle(arr):
         pass
 
     def flip(arr, axis):
@@ -83,4 +107,13 @@ class cohlib:
         pass
 
     def center_of_mass(arr):
+        pass
+
+    def exp(arr):
+        pass
+
+    def conj(arr):
+        pass
+
+    def save(file, arr):
         pass

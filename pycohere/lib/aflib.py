@@ -5,6 +5,10 @@ import numpy as np
 
 
 class aflib(cohlib):
+    @property
+    def is_af(self):
+        return True
+
     def set_device(dev_id):
         af.device.set_device(dev_id)
 
@@ -17,11 +21,21 @@ class aflib(cohlib):
     def from_numpy(arr):
         return af.np_to_af_array(arr.T)
 
+    def save(filename, arr):
+        np.save(filename, arr.to_ndarray().T)
+
+    def load(filename):
+        arr = np.load(filename)
+        return af.np_to_af_array(arr.T)
+
     def dtype(arr):
         return arr.dtype()
 
     def size(arr):
         return arr.elements()
+
+    def hasnan(arr):
+        return af.any_true(af.isnan(arr))
 
     def random(shape, **kwargs):
         import time
@@ -69,7 +83,7 @@ class aflib(cohlib):
     def square(arr):
         return af.pow(arr, 2)
 
-    def sum(arr):
+    def sum(arr, axis=None):
         return af.sum(arr)
 
     def real(arr):
@@ -78,14 +92,27 @@ class aflib(cohlib):
     def imag(arr):
         return af.imag(arr)
 
-    def max(arr):
+    def amax(arr):
         return af.max(arr)
+
+    def maximum(arr1, arr2):
+        return af.select((arr1 > arr2), arr1, arr2)
+
+    def argmax(arr, axis=None):
+        val, idx = af.imax(arr, axis)
+        return idx
+
+    def ceil(arr):
+        return af.ceil(arr)
+
+    def fix(arr):
+        return af.trunc(arr)
 
     def print(arr, **kwargs):
         af.display(arr)
 
-    def arctan2(arr1, arr2):
-        return af.atan2(arr1, arr2)
+    def angle(arr):
+        return af.atan2(af.imag(arr), af.real(arr))
 
     def flip(arr, axis=None):
         if axis is None:
@@ -123,6 +150,17 @@ class aflib(cohlib):
             mod_dims[dim] = 1
 
         return com
+
+    def exp(arr):
+        return af.exp(arr)
+
+    def cong(arr):
+        return af.conjg(arr)
+
+    def save(file, arr):
+        nparr = arr.to_ndarray().T
+        np.save(file, nparr)
+
 
 class aflib1(aflib):
     def fftshift(arr):
