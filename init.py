@@ -13,3 +13,9 @@ with open('workspace/scan_54/conf/config_prep', 'r') as file :
 filedata = filedata.replace('CUR_DIR', cur_dir)
 with open('workspace/scan_54/conf/config_prep', 'w') as file:
     file.write(filedata)
+
+with open('workspace/scan_54/conf/config_disp', 'r') as file :
+    filedata = file.read()
+filedata = filedata.replace('CUR_DIR', cur_dir)
+with open('workspace/scan_54/conf/config_disp', 'w') as file:
+    file.write(filedata)
