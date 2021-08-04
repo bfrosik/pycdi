@@ -171,7 +171,7 @@ def reconstruction(proc, conf_file, datafile, dir, dev):
     worker = calc.Rec(pars, datafile)
 
     try:
-        worker.init_dev(dev)
+        worker.init_dev(dev[0])
     except EnvironmentError:
         print ('cannot load on device ID', dev)
         return
