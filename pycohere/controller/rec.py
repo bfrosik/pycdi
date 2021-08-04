@@ -167,6 +167,7 @@ class Rec:
 
 
     def init_dev(self, device_id):
+        print('device', device_id)
         if device_id != -1:
             try:
                 devlib.set_device(device_id)
@@ -335,7 +336,8 @@ class Rec:
         devlib.save(os.path.join(save_dir, 'support'), self.support_obj.get_support())
         if self.is_pcdi:  #TODO make sure the self.is_pcdi is set according to gen
             devlib.save(os.path.join(save_dir, 'coherence'), self.pcdi_obj.kernel)
-        devlib.save(os.path.join(save_dir, 'errors'), self.errs)
+        # errs = np.asarray(self.errs)
+        # np.save(os.path.join(save_dir, 'errors'), errs)
         return 0
 
 
