@@ -87,6 +87,7 @@ class Generation:
         """
         self.current_gen += 1
 
+
     def get_data(self, data):
         """
         If low resolution feature is enabled (i.e. when ga_low_resolution_sigmas parameter is defined) the data is modified in each generation that has the sigma provided in the ga_low_resolution_sigmas list. The data is multiplied by gaussian distribution calculated using the defined sigma.
@@ -183,25 +184,26 @@ class Generation:
         -------
         nothing
         """
+        ranked_proc = sorted(proc_metrics.items(), key=lambda x: x[1], reverse=False)
         metric_type = self.metrics[self.current_gen]
         # ranks keeps indexes of reconstructions from best to worst
         # for most of the metric types the minimum of the metric is best, but for
         # 'summed_phase' and 'area' it is oposite, so reversing the order
-        procs, metrics = zip(*proc_metrics)
-        ranks = np.argsort(metrics).tolist()
+        # procs, metrics = zip(*proc_metrics)
+        # ranks = np.argsort(metrics).tolist()
         if metric_type == 'summed_phase' or metric_type == 'area':
-            ranks.reverse()
-        proc_ranks = list(zip(procs, ranks))
-        return proc_ranks
+            ranked_proc.reverse()
+        # proc_ranks = list(zip(procs, ranks))
+        return ranked_proc
 
 
     def cull(self, lst):
         print('breeding generation ', (self.current_gen + 1))
 
-        if len(lst) <= self.ga_reconstructions[self.current_gen + 1]:
+        if len(lst) <= self.ga_reconstructions[self.current_gen]:
             return lst
         else:
-            return lst[0:self.ga_reconstructions[self.current_gen + 1]]
+            return lst[0:self.ga_reconstructions[self.current_gen]]
 
 
 def reconstruction(proc, conf_file, datafile, dir, devices):
@@ -229,7 +231,8 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
     -------
     nothing
     """
-    back = 'np'
+    back = 'cp'
+    mp.set_start_method('spawn')
 
     pars = Params(conf_file)
     er_msg = pars.set_params()
@@ -273,7 +276,7 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
     except AttributeError:
         filename = conf_file.split('/')[-1]
         save_dir = os.path.join(dir, filename.replace('config_rec', 'results'))
-#    temp_dir = os.path.join(save_dir, 'temp')
+        #    temp_dir = os.path.join(save_dir, 'temp')
 
     generations = pars.generations
 
@@ -283,8 +286,8 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
         if pars.ga_fast:  # NEW the number of processes is the same as available GPUs (can be same GPU if can fit more recs)
             reconstructions = min(reconstructions, len(devices))
             workers = [calc.Rec(pars, datafile) for _ in range(reconstructions)]
-            for worker in workers:
-                worker.init_dev(devices.pop())
+            #            for worker in workers:
+            #                worker.init_dev(devices.pop())
             processes = {}
 
             for worker in workers:
@@ -295,12 +298,23 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
                 processes[process.pid] = [process, worker_qin, worker_qout]
                 print('creating process', process.pid)
 
+            prev_dirs = None
             for g in range(generations):
-                gen_save_dir = os.path.join(save_dir, 'g_' + str(g))
+                if g == 0:
+                    for pid in processes:
+                        worker_qin = processes[pid][1]
+                        worker_qin.put(('init_dev', devices.pop()))
+                    for pid in processes:
+                        worker_qout = processes[pid][2]
+                        ret = worker_qout.get()
                 bad_processes = []
                 for pid in processes:
                     worker_qin = processes[pid][1]
-                    worker_qin.put(('init', None, g))
+                    if prev_dirs is None:
+                        prev_dir = None
+                    else:
+                        prev_dir = prev_dirs[pid]
+                    worker_qin.put(('init', prev_dir, g))
                 for pid in processes:
                     worker_qout = processes[pid][2]
                     ret = worker_qout.get()
@@ -324,14 +338,15 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
                     processes[pid][0].terminate()
                     processes.pop(pid)
                 # get metric, i.e the goodness of reconstruction from each run
-                proc_metrics = []
+                proc_metrics = {}
                 for pid in processes:
                     worker_qin = processes[pid][1]
-                    worker_qin.put('get_metric')
+                    metric_type = pars.metrics[g]
+                    worker_qin.put(('get_metric', metric_type))
                 for pid in processes:
                     worker_qout = processes[pid][2]
                     metric = worker_qout.get()
-                    proc_metrics.append(pid, metric)
+                    proc_metrics[pid] = metric
                 # order processes by metric
                 proc_ranks = gen_obj.order_processes(proc_metrics)
                 # cull
@@ -342,14 +357,24 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
                     processes[pid][0].terminate()
                     processes.pop(pid)
                 # save results, we may modify it later to save only some
-                for pr in culled_proc_ranks:
-                    pid, rank = pr
+                gen_save_dir = os.path.join(save_dir, 'g_' + str(g))
+                prev_dirs = {}
+                for i in range(len(culled_proc_ranks)):
+                    pid = culled_proc_ranks[i][0]
                     worker_qin = processes[pid][1]
-                    worker_qin.put(('save_res', os.path.join(gen_save_dir, str(rank))))
+                    worker_qin.put(('save_res', os.path.join(gen_save_dir, str(i))))
+                    prev_dirs[pid] = os.path.join(gen_save_dir, str(i))
                 for pid in processes:
                     worker_qout = processes[pid][2]
                     ret = worker_qout.get()
                 gen_obj.next_gen()
+            for i in range(len(culled_proc_ranks)):
+                pid = culled_proc_ranks[i][0]
+                worker_qin = processes[pid][1]
+                worker_qin.put('close_dev')
+            for pid in processes:
+                worker_qout = processes[pid][2]
+                ret = worker_qout.get()
             for pid in processes:
                 worker_qin = processes[pid][1]
                 worker_qin.put('done')

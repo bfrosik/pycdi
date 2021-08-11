@@ -4,6 +4,11 @@ import scipy
 
 
 class nplib(cohlib):
+    def array(obj):
+        return np.array(obj)
+
+    def dot(arr1, arr2):
+        return np.dot(arr1, arr2)
 
     def set_device(dev_id):
         pass
@@ -98,10 +103,13 @@ class nplib(cohlib):
         return np.argmax(arr, axis)
 
     def ceil(arr):
-        return cp.ceil(arr)
+        return np.ceil(arr)
 
     def fix(arr):
         return np.fix(arr)
+
+    def round(val):
+        return np.round(val)
 
     def print(arr, **kwargs):
         print(arr)
@@ -112,6 +120,9 @@ class nplib(cohlib):
     def flip(arr, axis=None):
         return np.flip(arr, axis)
 
+    def tile(arr, rep):
+        return np.tile(arr, rep)
+
     def full(shape, fill_value, **kwargs):
         return np.full(shape, fill_value)
 
@@ -121,6 +132,9 @@ class nplib(cohlib):
 
     def center_of_mass(inarr):
         return scipy.ndimage.center_of_mass(np.absolute(inarr))
+
+    def meshgrid(*xi):
+        return np.meshgrid(*xi)
 
     def exp(arr):
         return np.exp(arr)

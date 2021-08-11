@@ -78,7 +78,7 @@ class Params:
             if conf.lookup('ga_fast') is not None:
                 self.ga_fast = conf.ga_fast
             else:
-                self.ga_fast = False
+                self.ga_fast = True
             if conf.lookup('self.metrics') is not None:
                 self.metrics = list(conf.ga_metrics)
                 if len(self.metrics) == 1:
@@ -131,7 +131,7 @@ class Params:
                     else:
                         support_sigma = 1.0
                     self.ga_support_sigmas = self.ga_support_sigmas + [support_sigma, ] * (
-                    self.generations - len(self.ga_support_sigmas))
+                        self.generations - len(self.ga_support_sigmas))
             else:
                 if conf.lookup('support_sigma') is not None:
                     support_sigma = conf.support_sigma

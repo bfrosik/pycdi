@@ -29,21 +29,6 @@ def set_lib(dlib):
     devlib = dlib
     dvut.set_lib(devlib)
 
-# def set_lib(pkg, ndim):
-#     global devlib
-#     if pkg == 'af':
-#         if ndim == 1:
-#             devlib = importlib.import_module('pycohere.lib.aflib').aflib1
-#         elif ndim == 2:
-#             devlib = importlib.import_module('pycohere.lib.aflib').aflib2
-#         elif ndim == 3:
-#             devlib = importlib.import_module('pycohere.lib.aflib').aflib3
-#         else:
-#             raise NotImplementedError
-#     elif pkg == 'cp':
-#         devlib = importlib.import_module('pycohere.lib.cplib').cplib
-#     dvut.set_lib(devlib)
-
 
 def get_norm(arr):
     return devlib.sum(devlib.square(devlib.absolute(arr)))
@@ -141,16 +126,16 @@ class Support:
 
 
     def get_distribution(self, dims, sigma):
-        sigmas = [dim / (2.0 * np.pi * self.params.support_sigma) for dim in dims ]
+        sigmas = [dim / (2.0 * np.pi * sigma) for dim in dims ]
         dist = devlib.gaussian(dims, sigmas)
         return dist
 
 
-    def update_amp(self, ds_image, sigma):
+    def update_amp(self, ds_image, sigma, threshold):
         if sigma != self.prev_sigma:
             self.distribution = self.get_distribution(self.dims, sigma)
             self.prev_sigma = sigma
-        self.support = dvut.shrink_wrap(ds_image, self.params.support_threshold, self.distribution)
+        self.support = dvut.shrink_wrap(ds_image, threshold, self.distribution)
 
 
     def update_phase(self, ds_image):
@@ -167,17 +152,20 @@ class Rec:
 
 
     def init_dev(self, device_id):
-        print('device', device_id)
+        self.dev = device_id
+        print ('device id', device_id)
         if device_id != -1:
             try:
                 devlib.set_device(device_id)
-            except:
+            except Exception as e:
+                print (e)
                 raise EnvironmentError
         if self.data_file.endswith('tif') or self.data_file.endswith('tiff'):
             try:
                 data_np = ut.read_tif(self.data_file)
                 data = devlib.from_numpy(data_np)
             except:
+
                 print('could not load data file', self.data_file)
                 raise ValueError
         elif self.data_file.endswith('npy'):
@@ -193,20 +181,24 @@ class Rec:
         # in the formatted data the max is in the center, we want it in the corner, so do fft shift
         self.data = devlib.fftshift(devlib.absolute(data))
         self.dims = devlib.dims(self.data)
+        return 0
 
 
     def fast_ga(self, worker_qin, worker_qout):
         functions_dict = {}
+        functions_dict[self.init_dev.__name__] = self.init_dev
         functions_dict[self.init.__name__] = self.init
         functions_dict[self.breed.__name__] = self.breed
-        functions_dict[self.iterate.__name__] = self.breed
+        functions_dict[self.iterate.__name__] = self.iterate
         functions_dict[self.get_metric.__name__] = self.get_metric
         functions_dict[self.save_res.__name__] = self.save_res
+        functions_dict[self.close_dev.__name__] = self.close_dev
 
         done = False
         while not done:
             # cmd is a tuple containing name of the function, followed by arguments
             cmd = worker_qin.get()
+            print('cmd',cmd)
             if cmd == 'done':
                 done = True
             else:
@@ -215,12 +207,14 @@ class Rec:
                     ret = functions_dict[cmd]()
                 else:
                 # the function name is the first element in the cmd tuple, and the other elements are arguments
-                    ret = functions_dict[cmd[0]](cmd[1:])
+                    ret = functions_dict[cmd[0]](*cmd[1:])
                 worker_qout.put(ret)
 
 
     def init(self, dir=None, gen=None):
+        print('dir, gen', dir, gen)
         if self.ds_image is not None:
+            first_run = False
             pass
         elif dir is None or not os.path.isfile(os.path.join(dir, 'image.npy')):
             self.ds_image = devlib.random(self.dims, dtype=self.data.dtype)
@@ -300,12 +294,13 @@ class Rec:
     def breed(self):
         breed_mode = self.params.breed_modes[self.gen]
         if breed_mode != 'none':
-            self.ds_image = devlib.breed(breed_mode, self.prev_dir, self.ds_image)
-            self.support_obj.params = devlib.shrink_wrap(self.ds_image, self.params.ga_support_thresholds[self.gen], self.params.ga_support_sigmas[self.gen])
+            self.ds_image = dvut.breed(breed_mode, self.prev_dir, self.ds_image)
+            self.support_obj.params = dvut.shrink_wrap(self.ds_image, self.params.ga_support_thresholds[self.gen], self.params.ga_support_sigmas[self.gen])
         return 0
 
 
     def iterate(self):
+        print ('starting iterate')
         start_t = time.time()
         for f in self.flow:
             f()
@@ -336,7 +331,7 @@ class Rec:
         devlib.save(os.path.join(save_dir, 'support'), self.support_obj.get_support())
         if self.is_pcdi:  #TODO make sure the self.is_pcdi is set according to gen
             devlib.save(os.path.join(save_dir, 'coherence'), self.pcdi_obj.kernel)
-        # errs = np.asarray(self.errs)
+        # errs = np.asarray(list(self.errs))
         # np.save(os.path.join(save_dir, 'errors'), errs)
         return 0
 
@@ -356,6 +351,20 @@ class Rec:
             calculated metric
         """
         return dvut.get_metric(self.ds_image, self.errs, metric_type)
+
+
+    def close_dev(self):
+        import cupy as cp
+        del self.ds_image
+        del self.rs_amplitudes
+        del self.params
+        del self.support_obj
+        del self.errs
+        del self.iter_data
+        del self.data
+        cp._default_memory_pool.free_all_blocks()
+        #device = self.ds_image.device
+        #device.__exit__()
 
 
     def save_metrics(errs, dir, metrics=None):
@@ -423,7 +432,7 @@ class Rec:
 
     def shrink_wrap_trigger(self):
 #        print('******* shrink wrap')
-        self.support_obj.update_amp(self.ds_image, self.sigma)
+        self.support_obj.update_amp(self.ds_image, self.sigma, self.params.support_threshold)
 #        print ('shrink wrap, support norm', get_norm(self.support_obj.get_support()))
 
 
@@ -539,55 +548,3 @@ class Rec:
         divisor_copy = devlib.where((divisor_copy != 0.0), divisor_copy, 1.0)
         ratio = divident / divisor_copy
         return ratio
-
-
-# def fast_module_reconstruction(proc, device, params, data, image=None, support=None, coherence=None):
-#     """
-#     This function calls a bridge method corresponding to the requested processor type. The bridge method is an access
-#     to the CFM (Calc Fast Module). When reconstruction is completed the function retrieves results from the CFM.
-#     The data received is max centered and the array is ordered "C". The CFM requires data zero-frequency component at
-#     the center of the spectrum and "F" array order. Thus the data is modified at the beginning.
-#     Parameters
-#     ----------
-#     proc : str
-#         a string indicating the processor type/library, chices are: cpu, cuda, opencl
-#     device : int
-#         device id assigned to this reconstruction
-#     params : Paramas object
-#         object containing reconstruction parameters
-#     data : ndarray
-#         np array containing pre-processed, formatted experiment data
-#     image : ndarray
-#         initial image to continue reconstruction or None if random initial image
-#     support : ndarray
-#         support corresponding to image if continuation or None
-#     coherence : ndarray
-#        coherence corresponding to image if continuation and active pcdi feature or None
-#
-#     Returns
-#     -------
-#     image : ndarray
-#         reconstructed image
-#     support : ndarray
-#         support for reconstructed image
-#     coherence : ndarray
-#         coherence for reconstructed image or None if pcdi inactive
-#     er : list
-#         a vector containing errors for each iteration
-#     flow : ndarray
-#         info to scientist/developer; a list of functions  that can run in one iterations (excluding inactive features)
-#     iter_array : ndarray
-#         info to scientist/developer; an array of 0s and 1s, 1 meaning the function in flow will be executed in iteration, 0 otherwise
-#     """
-#     d_type = np.float32
-#     data = np.fft.fftshift(data).astype(d_type)
-# #    print(data.shape)
-#     set_lib('af', len(data.shape))
-#
-#     worker = Rec(params, data.shape, (image is None))
-#     worker.dev_init(proc, device, data, (image is None))
-#     image, support, coherence, err = worker.iterate()
-#     mx = np.absolute(image).max()
-#     image = image / mx
-#
-#     return image, support, coherence, err

@@ -9,6 +9,12 @@ class aflib(cohlib):
     def is_af(self):
         return True
 
+    def array(obj):
+        print('not implemented')
+
+    def dot(arr1, arr2):
+        print('not implemented')
+
     def set_device(dev_id):
         af.device.set_device(dev_id)
 
@@ -108,6 +114,9 @@ class aflib(cohlib):
     def fix(arr):
         return af.trunc(arr)
 
+    def round(val):
+        print ('not implemented')
+
     def print(arr, **kwargs):
         af.display(arr)
 
@@ -119,6 +128,9 @@ class aflib(cohlib):
             raise NotImplementedError
         else:
             return af.flip(arr, axis)
+
+    def tile(arr, rep):
+        print ('not implemented')
 
     def full(shape, fill_value, **kwargs):
         dims = [None, None, None, None]
@@ -150,6 +162,9 @@ class aflib(cohlib):
             mod_dims[dim] = 1
 
         return com
+
+    def meshgrid(*xi):
+        print ('not implemented')
 
     def exp(arr):
         return af.exp(arr)

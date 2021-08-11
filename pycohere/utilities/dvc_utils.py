@@ -36,7 +36,7 @@ def pad_around(arr, shape, val=0):
     dims = dvclib.dims(arr)
     principio = []
     finem = []
-    for i in range(3):
+    for i in range(len(shape)):
         principio.append(int((shape[i] - dims[i]) / 2))
         finem.append(principio[i] + dims[i])
     if len(shape) == 1:
@@ -212,6 +212,7 @@ def get_metric(image, errs, metric_type):
         calculated metric for a given type
     """
     if metric_type == 'chi':
+        print ('err type', type(errs))
         return errs[-1]
     elif metric_type == 'sharpness':
         return dvclib.sum(dvclib.square(dvclib.square(dvclib.absolute(image))))
@@ -243,11 +244,8 @@ def dftups(arr, nor=-1, noc=-1, usfac=2, roff=0, coff=0):
     ndarray
         upsampled array
     """
-    # The operations that include size of array will be done on cpu
-    import numpy as np
-
     # arr is 2D
-    [nr, nc] = dvclib.shape(arr)
+    [nr, nc] = dvclib.dims(arr)
     if nor < 0:
         nor = nr
     if noc < 0:
@@ -255,23 +253,23 @@ def dftups(arr, nor=-1, noc=-1, usfac=2, roff=0, coff=0):
 
     # Compute kernels and obtain DFT by matrix products
     yl = list(range(-int(math.floor(nc / 2)), nc - int(math.floor(nc / 2))))
-    y = dvclib2.ifftshift(np.array(yl)) * (-2j * math.pi / (nc * usfac))
+    y = dvclib2.ifftshift(dvclib.array(yl)) * (-2j * math.pi / (nc * usfac))
     xl = list(range(-coff, noc - coff))
-    x = np.array(xl)
-    yt = np.tile(y, (len(xl), 1))
-    xt = np.tile(x, (len(yl), 1))
-    kernc = np.exp(yt.T * xt)
+    x = dvclib.array(xl)
+    yt = dvclib.tile(y, (len(xl), 1))
+    xt = dvclib.tile(x, (len(yl), 1))
+    kernc = dvclib2.exp(yt.T * xt)
 
     yl = list(range(-roff, nor - roff))
-    y = np.array(yl)
-    xl = list(range(-int(np.floor(nr / 2)), nr - int(np.floor(nr / 2))))
-    x = np.fft.ifftshift(np.array(xl))
-    yt = np.tile(y, (len(xl), 1))
-    xt = np.tile(x, (len(yl), 1))
-    kernr = np.exp(yt * xt.T * (-2j * np.pi / (nr * usfac)))
+    y = dvclib.array(yl)
+    xl = list(range(-int(math.floor(nr / 2)), nr - int(math.floor(nr / 2))))
+    x = dvclib2.ifftshift(dvclib.array(xl))
+    yt = dvclib.tile(y, (len(xl), 1))
+    xt = dvclib.tile(x, (len(yl), 1))
+    kernr = dvclib.exp(yt * xt.T * (-2j * math.pi / (nr * usfac)))
 
     # return as device array
-    return np.dot(np.dot(dvclib.from_numpy(kernr.T), arr), dvclib.from_numpy(kernc))
+    return dvclib.dot(dvclib.dot(kernr.T, arr), kernc)
 
 
 def dftregistration(ref_arr, arr, usfac=2):
@@ -305,7 +303,6 @@ def dftregistration(ref_arr, arr, usfac=2):
     # Compute crosscorrelation and locate the peak
     c_c = dvclib2.ifft(dvclib2.ifftshift(c_c))    #TODO will not work for aflib
     max_coord = dvclib2.argmax(c_c)
-
     if max_coord[0] > shape[0]:
         row_shift = max_coord[0] - large_shape[0]
     else:
@@ -322,8 +319,8 @@ def dftregistration(ref_arr, arr, usfac=2):
     if usfac > 2:
         # DFT computation
         # Initial shift estimate in upsampled grid
-        row_shift = round(row_shift * usfac) / usfac
-        col_shift = round(col_shift * usfac) / usfac
+        row_shift = dvclib2.round(row_shift * usfac) / usfac
+        col_shift = dvclib2.round(col_shift * usfac) / usfac
         dftshift = dvclib2.fix(dvclib.ceil(usfac * 1.5) / 2)  # Center of output array at dftshift
         # Matrix multiply DFT around the current shift estimate
         c_c = dvclib2.conj(dftups(arr * dvclib2.conj(ref_arr), int(math.ceil(usfac * 1.5)), int(math.ceil(usfac * 1.5)), usfac,
@@ -367,7 +364,6 @@ def register_3d_reconstruction(ref_arr, arr):
     return shift_2, shift_1, shift_0
 
 
-
 def sub_pixel_shift(arr, row_shift, col_shift, z_shift):
     """
     Shifts pixels in a regularly sampled LR image with a subpixel precision according to local gradient.
@@ -386,17 +382,15 @@ def sub_pixel_shift(arr, row_shift, col_shift, z_shift):
     ndarray
         shifted array
     """
-    import numpy as np
-
     buf2ft = dvclib.fft(arr)
     shape = arr.shape
-    Nr = dvclib.ifftshift(np.array(list(range(-int(np.floor(shape[0] / 2)), shape[0] - int(np.floor(shape[0] / 2))))))
-    Nc = dvclib.ifftshift(np.array(list(range(-int(np.floor(shape[1] / 2)), shape[1] - int(np.floor(shape[1] / 2))))))
-    Nz = dvclib.ifftshift(np.array(list(range(-int(np.floor(shape[2] / 2)), shape[2] - int(np.floor(shape[2] / 2))))))
-    [Nc, Nr, Nz] = np.meshgrid(Nc, Nr, Nz)
-    mg = 1j * 2 * np.pi * (-row_shift * Nr / shape[0] - col_shift * Nc / shape[1] - z_shift * Nz / shape[2])
+    Nr = dvclib.ifftshift(dvclib.array(list(range(-int(math.floor(shape[0] / 2)), shape[0] - int(math.floor(shape[0] / 2))))))
+    Nc = dvclib.ifftshift(dvclib.array(list(range(-int(math.floor(shape[1] / 2)), shape[1] - int(math.floor(shape[1] / 2))))))
+    Nz = dvclib.ifftshift(dvclib.array(list(range(-int(math.floor(shape[2] / 2)), shape[2] - int(math.floor(shape[2] / 2))))))
+    [Nc, Nr, Nz] = dvclib.meshgrid(Nc, Nr, Nz)
+    mg = 1j * 2 * math.pi * (-row_shift * Nr / shape[0] - col_shift * Nc / shape[1] - z_shift * Nz / shape[2])
     # return as array on device
-    Greg = buf2ft * dvclib.exp(dvclib.from_numpy(mg))
+    Greg = buf2ft * dvclib.exp(mg)
     return dvclib.ifft(Greg)
 
 
@@ -465,19 +459,19 @@ def breed(breed_mode, parent_dir, image):
     """
     if os.path.basename(os.path.normpath(parent_dir)) == '0':
         # it is alpha, no breeding
-        return zero_phase(image, 0)
+        return zero_phase(image)
     else:
         # find and load alpha
         gen_dir = os.path.dirname(parent_dir)
         alpha = dvclib.load(os.path.join(gen_dir, '0', 'image.npy'))
-        alpha = zero_phase(alpha, 0)
+        alpha = zero_phase(alpha)
 
     # load image file
     beta = image
-    beta = zero_phase(beta, 0)
+    beta = zero_phase(beta)
     alpha = check_get_conj_reflect(beta, alpha)
     alpha_s = align_arrays(beta, alpha)
-    alpha_s = zero_phase(alpha_s, 0)
+    alpha_s = zero_phase(alpha_s)
     ph_alpha = dvclib.angle(alpha_s)
     beta = zero_phase_cc(beta, alpha_s)
     ph_beta = dvclib.angle(beta)
@@ -503,12 +497,6 @@ def breed(breed_mode, parent_dir, image):
 
     elif breed_mode == 'sqrt_ab_pa':
         beta = dvclib.sqrt(dvclib.absolute(alpha_s) * dvclib.absolute(beta)) * dvclib.exp(1j * ph_alpha)
-
-    elif breed_mode == 'sqrt_ab_pa_recip':
-        temp1 = dvclib.fftshift(dvclib.fft(dvclib.fftshift(beta)))
-        temp2 = dvclib.fftshift(dvclib.fft(dvclib.fftshift(alpha_s)))
-        temp = dvclib.sqrt(dvclib.absolute(temp1) * dvclib.absolute(temp2)) * dvclib.exp(1j * dvclib.angle(temp2))
-        beta = dvclib.fftshift(dvclib.ifft(dvclib.fftshift(temp)))
 
     elif breed_mode == 'sqrt_ab_recip':
         temp1 = dvclib.fftshift(dvclib.fft(dvclib.fftshift(beta)))

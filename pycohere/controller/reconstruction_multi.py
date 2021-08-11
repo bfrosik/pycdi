@@ -45,7 +45,7 @@ def set_lib(pkg, ndim):
     calc.set_lib(devlib)
 
 
-def single_rec_process(params, metric_type, gen, worker, prev_dir, save_dir):
+def single_rec_process(metric_type, gen, rec_attrs):
     """
     This function runs a single reconstruction process.
 
@@ -71,7 +71,7 @@ def single_rec_process(params, metric_type, gen, worker, prev_dir, save_dir):
     metric : float
         a calculated characteristic of the image array defined by the metric
     """
-
+    worker, prev_dir, save_dir = rec_attrs
     try:
         worker.init_dev(gpu)
     except EnvironmentError:
@@ -113,7 +113,7 @@ def assign_gpu(*args):
     gpu = q.get()
 
 
-def multi_rec(save_dir, pars, devices, workers, prev_dirs, metric_type='chi', gen=None):
+def multi_rec(save_dir, devices, workers, prev_dirs, metric_type='chi', gen=None):
     """
     This function controls the multiple reconstructions.
 
@@ -159,16 +159,14 @@ def multi_rec(save_dir, pars, devices, workers, prev_dirs, metric_type='chi', ge
     for i in range(len(workers)):
         save_sub = os.path.join(save_dir, str(i))
         save_dirs.append(save_sub)
-        iterable.append(workers[i], prev_dirs[i], save_sub)
-    print('iterable', iterable)
-    func = partial(single_rec_process, pars, metric_type, gen)
+        iterable.append((workers[i], prev_dirs[i], save_sub))
+    func = partial(single_rec_process, metric_type, gen)
     q = Queue()
     for device in devices:
         q.put(device)
     with Pool(processes=len(devices), initializer=assign_gpu, initargs=(q,)) as pool:
         pool.map_async(func, iterable, callback=collect_result)
         q.close()
-        q.join_thread()
         pool.close()
         pool.join()
         pool.terminate()
@@ -263,4 +261,4 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
 
     workers = [calc.Rec(pars, datafile) for _ in range(reconstructions)]
 
-    save_dirs, evals = multi_rec(save_dir, pars, datafile, devices, workers, prev_dirs)
+    save_dirs, evals = multi_rec(save_dir, devices, workers, prev_dirs)

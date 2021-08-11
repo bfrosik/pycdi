@@ -3,6 +3,12 @@ class cohlib:
     def is_af(self):
         return False
 
+    def array(obj):
+        pass
+
+    def dot(arr1, arr2):
+        pass
+
     def set_device(dev_id):
         pass
 
@@ -88,6 +94,9 @@ class cohlib:
     def fix(arr):
         pass
 
+    def round(val):
+        pass
+
     def random(shape, **kwargs):
         pass
 
@@ -103,10 +112,16 @@ class cohlib:
     def flip(arr, axis):
         pass
 
+    def tile(arr, rep):
+        pass
+
     def gaussian(dims, sigmas, **kwargs):
         pass
 
     def center_of_mass(arr):
+        pass
+
+    def meshgrid(*xi):
         pass
 
     def exp(arr):

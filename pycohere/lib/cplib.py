@@ -7,6 +7,11 @@ from cupyx.scipy import ndimage
 
 
 class cplib(cohlib):
+    def array(obj):
+        return cp.array(obj)
+
+    def dot(arr1, arr2):
+        return cp.dot(arr1, arr2)
 
     def set_device(dev_id):
         cp.cuda.Device(dev_id).use()
@@ -103,6 +108,9 @@ class cplib(cohlib):
     def fix(arr):
         return cp.fix(arr)
 
+    def round(val):
+        return cp.round(val)
+
     def print(arr, **kwargs):
         print(arr)
 
@@ -111,6 +119,9 @@ class cplib(cohlib):
 
     def flip(arr, axis=None):
         return cp.flip(arr, axis)
+
+    def tile(arr, rep):
+        return cp.tile(arr, rep)
 
     def full(shape, fill_value, **kwargs):
         return cp.full(shape, fill_value)
@@ -121,6 +132,9 @@ class cplib(cohlib):
 
     def center_of_mass(inarr):
         return cpx.scipy.ndimage.center_of_mass(cp.absolute(inarr))
+
+    def meshgrid(*xi):
+        return cp.meshgrid(*xi)
 
     def exp(arr):
         return cp.exp(arr)
