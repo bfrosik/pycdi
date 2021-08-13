@@ -614,16 +614,14 @@ class DispTab(QWidget):
         self.tabs = tabs
         self.main_win = main_window
 
-        # the group of fields below are used to keep track of the results directory that will be processed
-        # when running display
         self.results_dir = None
-        # self.separate_scans = False
-        # self.rec_id = ''
-        # self.generations = 0
 
         layout = QFormLayout()
         self.result_dir_button = QPushButton()
         layout.addRow("results directory", self.result_dir_button)
+        self.make_twin = QCheckBox('make twin')
+        self.make_twin.setChecked(False)
+        layout.addWidget(self.make_twin)
         self.diffractometer = QLineEdit()
         layout.addRow("diffractometer", self.diffractometer)
         self.crop = QLineEdit()
@@ -712,6 +710,15 @@ class DispTab(QWidget):
         self.result_dir_button.setText(self.results_dir)
         # if parameters are configured, override the readings from spec file
         try:
+            make_twin = conf_map.make_twin
+            if make_twin:
+                self.make_twin.setChecked(True)
+            else:
+                self.make_twin.setChecked(False)
+        except:
+            self.make_twin.setChecked(False)
+
+        try:
             self.diffractometer.setText(str(conf_map.diffractometer).replace(" ", ""))
         except AttributeError:
             pass
@@ -778,6 +785,7 @@ class DispTab(QWidget):
 
 
     def clear_conf(self):
+        self.make_twin.setChecked(False)
         self.diffractometer.setText('')
         self.crop.setText('')
         self.rampups.setText('')
@@ -826,6 +834,8 @@ class DispTab(QWidget):
         if self.results_dir is not None:
          #   conf_map['results_dir'] = '"' + str(self.results_dir).strip() + '"'
             conf_map['results_dir'] = '"' + self.results_dir + '"'
+        if self.make_twin.isChecked():
+            conf_map['make_twin'] = 'true'
         if len(self.energy.text()) > 0:
             conf_map['energy'] = str(self.energy.text())
         if len(self.delta.text()) > 0:

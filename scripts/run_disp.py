@@ -103,11 +103,27 @@ def save_CX(conf_dict, image, support, coh, save_dir):
         if rampups > 1:
             image = vu.remove_ramp(image, ups=rampups)
     except:
-        pass
+        rampups = None
 
     geometry = disp.set_geometry(image.shape, params)
     viz = CXDViz(params.crop, geometry)
     viz.visualize(image, support, coh, save_dir)
+
+    try:
+        make_twin = conf_dict['make_twin']
+    except:
+        make_twin = False
+
+    if make_twin:
+        image = np.flip(image)
+        if support is not None:
+            support = np.flip(support)
+            image, support = vu.center(image, support)
+        if rampups is not None and rampups > 1:
+            image = vu.remove_ramp(image, ups=rampups)
+        viz.visualize(image, support, coh, save_dir, True)
+
+
 
 
 def process_dir(res_dir_conf):
@@ -134,7 +150,7 @@ def process_dir(res_dir_conf):
     except:
         print('cannot load file', imagefile)
         return
-
+    ut.save_tif(image, os.path.join(res_dir, 'image.tif'))
     support = None
     coh = None
 
@@ -146,6 +162,7 @@ def process_dir(res_dir_conf):
             print('cannot load file', supportfile)
     else:
         print('support file is missing in ' + res_dir + ' directory')
+    ut.save_tif(support, os.path.join(res_dir, 'support.tif'))
 
     cohfile = os.path.join(res_dir, 'coherence.npy')
     if os.path.isfile(cohfile):

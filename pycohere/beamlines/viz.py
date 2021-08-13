@@ -53,7 +53,7 @@ class CXDViz:
         self.recipspace_uptodate = 0
 
 
-    def visualize(self, image, support, coh, save_dir):
+    def visualize(self, image, support, coh, save_dir, is_twin=False):
         """
         Manages visualization process.
         Parameters
@@ -72,12 +72,18 @@ class CXDViz:
         """
         arrays = {"imAmp": abs(image), "imPh": np.angle(image)}
         self.add_ds_arrays(arrays)
-        self.write_directspace(os.path.join(save_dir, 'image'))
+        if is_twin:
+            self.write_directspace(os.path.join(save_dir, 'twin_image'))
+        else:
+            self.write_directspace(os.path.join(save_dir, 'image'))
         self.clear_direct_arrays()
         if support is not None:
             arrays = {"support": support}
             self.add_ds_arrays(arrays)
-            self.write_directspace(os.path.join(save_dir, 'support'))
+            if is_twin:
+                self.write_directspace(os.path.join(save_dir, 'twin_support'))
+            else:
+                self.write_directspace(os.path.join(save_dir, 'support'))
             self.clear_direct_arrays()
 
         if coh is not None:
