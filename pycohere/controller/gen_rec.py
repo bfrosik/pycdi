@@ -8,7 +8,6 @@
 """
 This module controls the genetic algoritm process.
 """
-
 import numpy as np
 import os
 import pycohere.controller.reconstruction as single
