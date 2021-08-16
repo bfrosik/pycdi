@@ -5,10 +5,6 @@ import numpy as np
 
 
 class aflib(cohlib):
-    @property
-    def is_af(self):
-        return True
-
     def array(obj):
         print('not implemented')
 
