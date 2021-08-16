@@ -24,10 +24,10 @@ __docformat__ = 'restructuredtext en'
 __all__ = ['fast_module_reconstruction', ]
 
 
-def set_lib(dlib):
+def set_lib(dlib, is_af):
     global devlib
     devlib = dlib
-    dvut.set_lib(devlib)
+    dvut.set_lib(devlib, is_af)
 
 
 def get_norm(arr):
@@ -135,7 +135,7 @@ class Support:
         if sigma != self.prev_sigma:
             self.distribution = self.get_distribution(self.dims, sigma)
             self.prev_sigma = sigma
-        self.support = dvut.shrink_wrap(ds_image, threshold, self.distribution)
+        self.support = dvut.shrink_wrap(ds_image, threshold, self.distribution, self.support)
 
 
     def update_phase(self, ds_image):
