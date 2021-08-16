@@ -3,11 +3,11 @@ import importlib
 import os
 
 
-def set_lib(dlib):
+def set_lib(dlib, is_af):
     global dvclib
     global dvclib2
     dvclib = dlib
-    if dvclib.is_af(dvclib):
+    if is_af:
         dvclib2 = importlib.import_module('pycohere.lib.aflib').aflib2
     else:
         dvclib2 = dvclib
@@ -62,7 +62,7 @@ def gauss_conv_fft(arr, distribution):
     return convag
 
 
-def shrink_wrap(arr, threshold, distribution):
+def shrink_wrap(arr, threshold, distribution, support=None):
     """
     Calculates support array.
 
@@ -81,10 +81,13 @@ def shrink_wrap(arr, threshold, distribution):
     support : ndarray
         support array
     """
-    convag = gauss_conv_fft(abs(arr), distribution)
+    convag = gauss_conv_fft(dvclib.absolute(arr), distribution)
     max_convag = dvclib.amax(convag)
     convag = convag / max_convag
-    support = dvclib.where(convag >= threshold, 1, 0)
+    if support is None:
+        support = dvclib.full(1, dvclib.shape(convag))
+    support = dvclib.where(convag >= threshold, support, 0)
+    support = dvclib.where(convag >= threshold, 1, support)
     return support
 
 
