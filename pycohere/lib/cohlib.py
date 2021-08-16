@@ -1,8 +1,5 @@
 class cohlib:
     # Interface
-    def is_af(self):
-        return False
-
     def array(obj):
         pass
 
