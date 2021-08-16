@@ -29,8 +29,6 @@ import pycohere.controller.gen_rec as gen_rec
 import pycohere.controller.reconstruction_multi as mult_rec
 import pycohere.utilities.utils as ut
 import config_verifier as ver
-import time
-from functools import reduce
 
 MEM_FACTOR = 1500
 ADJUST = 0.0
@@ -168,6 +166,35 @@ def manage_reconstruction(proc, experiment_dir, rec_id=None):
         print (str(e))
         return
 
+    # find which librarry to run it on, default is numpy ('np')
+    lib = 'np'
+    if proc == 'auto':
+        try:
+            import cupy
+            lib = 'cp'
+        except:
+            # currently we could not install arrayfire on linux, so numpy is the second choice
+            pass
+    elif proc == 'cp':
+        try:
+            import cupy
+            lib = 'cp'
+        except:
+            print('cupy is not installed, select different library (proc)')
+            return
+    elif proc == 'np':
+        pass  # lib set to 'np'
+    elif proc == 'af' or 'cpu' or proc == 'cuda' or proc == 'opencl':
+        try:
+            import arrayfire
+            lib = proc
+        except:
+            print('arrayfire is not installed, select different library (proc)')
+            return
+    else:
+        print ('invalid "proc" value', proc, 'is not supported')
+        return
+
     # exp_dirs_data list hold pairs of data and directory, where the directory is the root of data/data.tif file, and
     # data is the data.tif file in this directory.
     exp_dirs_data = []
@@ -201,7 +228,7 @@ def manage_reconstruction(proc, experiment_dir, rec_id=None):
     except:
         reconstructions = 1
     device_use = []
-    if proc == 'cpu':
+    if lib == 'cpu' or lib == 'np':
         cpu_use = [-1] * reconstructions
         if no_runs > 1:
             for _ in range(no_runs):
@@ -227,17 +254,17 @@ def manage_reconstruction(proc, experiment_dir, rec_id=None):
         datafile = dir_data[0]
         dir = dir_data[1]
         if generations > 1:
-            gen_rec.reconstruction(proc, conf_file, datafile, dir, device_use)
+            gen_rec.reconstruction(lib, conf_file, datafile, dir, device_use)
         elif reconstructions > 1:
-            mult_rec.reconstruction(proc, conf_file, datafile, dir, device_use)
+            mult_rec.reconstruction(lib, conf_file, datafile, dir, device_use)
         else:
-            rec.reconstruction(proc, conf_file, datafile, dir, device_use)
+            rec.reconstruction(lib, conf_file, datafile, dir, device_use)
     else:
         if len(device_use) == 0:
             device_use = [[-1]]
         else:
             # check if is it worth to use last chunk
-            if proc != 'cpu' and len(device_use[0]) > len(device_use[-1]) * 2:
+            if lib != 'cpu' and lib != 'np' and len(device_use[0]) > len(device_use[-1]) * 2:
                 device_use = device_use[0:-1]
         if generations > 1:
             r = 'g'
