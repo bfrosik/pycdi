@@ -27,7 +27,7 @@ __all__ = ['single_rec_process',
            'reconstruction']
 
 
-def set_lib(pkg, ndim):
+def set_lib(pkg, ndim=None):
     global devlib
     if pkg == 'af':
         if ndim == 1:
@@ -42,7 +42,7 @@ def set_lib(pkg, ndim):
         devlib = importlib.import_module('pycohere.lib.cplib').cplib
     elif pkg == 'np':
         devlib = importlib.import_module('pycohere.lib.nplib').nplib
-    calc.set_lib(devlib)
+    calc.set_lib(devlib, pkg=='af')
 
 
 def single_rec_process(metric_type, gen, rec_attrs):
@@ -180,7 +180,7 @@ def multi_rec(save_dir, devices, workers, prev_dirs, metric_type='chi', gen=None
     return save_dirs, evals
 
 
-def reconstruction(proc, conf_file, datafile, dir, devices):
+def reconstruction(lib, conf_file, datafile, dir, devices):
     """
     This function controls multiple reconstructions.
 
@@ -205,14 +205,12 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
     -------
     nothing
     """
-    back = 'np'
-
     pars = Params(conf_file)
     er_msg = pars.set_params()
     if er_msg is not None:
         return er_msg
 
-    if back == 'af':
+    if lib == 'af' or lib == 'cpu' or lib == 'opencl' or lib == 'cuda':
         if datafile.endswith('tif') or datafile.endswith('tiff'):
             try:
                 data = ut.read_tif(datafile)
@@ -229,13 +227,11 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
             print ('no data file found')
             return
         print('data shape', data.shape)
-        n_dim = len(data.shape)
+        set_lib('af', len(data.shape))
+        if lib != 'af':
+            devlib.set_backend(lib)
     else:
-        n_dim = None
-
-    set_lib(back, n_dim)
-
-    devlib.set_backend(proc)
+        set_lib(lib)
 
     try:
         reconstructions = pars.reconstructions
