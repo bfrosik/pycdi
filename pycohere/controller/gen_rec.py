@@ -8,6 +8,7 @@
 """
 This module controls the genetic algoritm process.
 """
+
 import numpy as np
 import os
 import pycohere.controller.reconstruction as single
@@ -32,7 +33,7 @@ __all__ = ['Generation.next_gen',
            'reconstruction']
 
 
-def set_lib(pkg, ndim):
+def set_lib(pkg, ndim=None):
     global dvclib
     if pkg == 'af':
         if ndim == 1:
@@ -47,7 +48,7 @@ def set_lib(pkg, ndim):
         dvclib = importlib.import_module('pycohere.lib.cplib').cplib
     elif pkg == 'np':
         dvclib = importlib.import_module('pycohere.lib.nplib').nplib
-    calc.set_lib(dvclib)
+    calc.set_lib(dvclib, pkg=='af')
 
 
 class Generation:
@@ -205,7 +206,7 @@ class Generation:
             return lst[0:self.ga_reconstructions[self.current_gen]]
 
 
-def reconstruction(proc, conf_file, datafile, dir, devices):
+def reconstruction(lib, conf_file, datafile, dir, devices):
     """
     This function controls reconstruction utilizing genetic algorithm.
 
@@ -230,15 +231,12 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
     -------
     nothing
     """
-    back = 'cp'
-    mp.set_start_method('spawn')
-
     pars = Params(conf_file)
     er_msg = pars.set_params()
     if er_msg is not None:
         return er_msg
 
-    if back == 'af':
+    if lib == 'af' or lib == 'cpu' or lib == 'opencl' or lib == 'cuda':
         if datafile.endswith('tif') or datafile.endswith('tiff'):
             try:
                 data = ut.read_tif(datafile)
@@ -255,13 +253,11 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
             print ('no data file found')
             return
         print('data shape', data.shape)
-        n_dim = len(data.shape)
+        set_lib('af', len(data.shape))
+        if lib != 'af':
+            dvclib.set_backend(lib)
     else:
-        n_dim = None
-
-    set_lib(back, n_dim)
-
-    dvclib.set_backend(proc)
+        set_lib(lib)
 
     try:
         reconstructions = pars.reconstructions
@@ -409,4 +405,3 @@ def reconstruction(proc, conf_file, datafile, dir, devices):
             gen_obj.next_gen()
 
     print('done gen')
-
