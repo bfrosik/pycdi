@@ -99,6 +99,9 @@ class cplib(cohlib):
     def argmax(arr, axis=None):
         return cp.argmax(arr, axis)
 
+    def unravel_index(indices, shape):
+        return cp.unravel_index(indices, shape)
+
     def maximum(arr1, arr2):
         return cp.maximum(arr1, arr2)
 
