@@ -96,6 +96,9 @@ class nplib(cohlib):
     def amax(arr):
         return np.amax(arr)
 
+    def unravel_index(indices, shape):
+        return np.unravel_index(indices, shape)
+
     def maximum(arr1, arr2):
         return np.maximum(arr1, arr2)
 
