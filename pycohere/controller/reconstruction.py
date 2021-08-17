@@ -154,9 +154,10 @@ def reconstruction(lib, conf_file, datafile, dir, dev):
         set_lib(lib)
 
     if not pars.cont:
-        cnt_dir = None
+        continue_dir = None
     else:
-        cnt_dir = pars.continue_dir
+        continue_dir = pars.continue_dir
+    print('cnt dir', continue_dir)
 
     try:
         save_dir = pars.save_dir
@@ -175,7 +176,7 @@ def reconstruction(lib, conf_file, datafile, dir, dev):
         print('could not load data file', datafile)
         return
 
-    worker.init(cnt_dir)
+    worker.init(continue_dir)
     ret_code = worker.iterate()
     if ret_code == 0:
         worker.save_res(save_dir)
