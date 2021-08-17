@@ -252,7 +252,6 @@ def reconstruction(lib, conf_file, datafile, dir, devices):
         else:
             print ('no data file found')
             return
-        print('data shape', data.shape)
         set_lib('af', len(data.shape))
         if lib != 'af':
             dvclib.set_backend(lib)
@@ -291,7 +290,6 @@ def reconstruction(lib, conf_file, datafile, dir, devices):
                 process = mp.Process(target=worker.fast_ga, args=(worker_qin, worker_qout))
                 process.start()
                 processes[process.pid] = [process, worker_qin, worker_qout]
-                print('creating process', process.pid)
 
             prev_dirs = None
             for g in range(generations):
@@ -363,13 +361,6 @@ def reconstruction(lib, conf_file, datafile, dir, devices):
                     worker_qout = processes[pid][2]
                     ret = worker_qout.get()
                 gen_obj.next_gen()
-            for i in range(len(culled_proc_ranks)):
-                pid = culled_proc_ranks[i][0]
-                worker_qin = processes[pid][1]
-                worker_qin.put('close_dev')
-            for pid in processes:
-                worker_qout = processes[pid][2]
-                ret = worker_qout.get()
             for pid in processes:
                 worker_qin = processes[pid][1]
                 worker_qin.put('done')
@@ -382,7 +373,7 @@ def reconstruction(lib, conf_file, datafile, dir, devices):
                 gen_save_dir = os.path.join(save_dir, 'g_' + str(g))
                 metric_type = gen_obj.metrics[g]
                 workers = [calc.Rec(pars, datafile) for _ in range(len(prev_dirs))]
-                prev_dirs, evals = rec.multi_rec(gen_save_dir, pars, devices, workers, prev_dirs, metric_type, g)
+                prev_dirs, evals = rec.multi_rec(gen_save_dir, devices, workers, prev_dirs, metric_type, g)
 
                 # results are saved in a list of directories - save_dir
                 # it will be ranked, and moved to temporary ranked directories
@@ -397,7 +388,7 @@ def reconstruction(lib, conf_file, datafile, dir, devices):
 
         for g in range(generations):
             gen_data = gen_obj.get_data(data)
-            ret_code = rec.single_rec(proc, os.path.join(save_dir, 'g_' + str(g)), gen_data, pars,
+            ret_code = rec.single_rec(lib, os.path.join(save_dir, 'g_' + str(g)), gen_data, pars,
                                                                                devices[0], image, support, coh)
             if ret_code != 0:
                 return
