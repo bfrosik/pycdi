@@ -72,7 +72,6 @@ class Pcdi:
             amplitudes_2 = devlib.square(roi_combined_amp)
             sum_ampl = devlib.sum(amplitudes_2)
             ratio = self.sum_roi_data / sum_ampl
-#            print(ratio, self.sum_roi_data, sum_ampl)
             amplitudes = devlib.sqrt(amplitudes_2 * ratio)
         else:
             amplitudes = roi_combined_amp
@@ -91,7 +90,6 @@ class Pcdi:
         self.kernel = devlib.real(self.kernel)
         coh_sum = devlib.sum(devlib.absolute(self.kernel))
         self.kernel = devlib.absolute(self.kernel) / coh_sum
-        # devlib.print(self.kernel)
 
 
 class Support:
@@ -153,7 +151,6 @@ class Rec:
 
     def init_dev(self, device_id):
         self.dev = device_id
-        print ('device id', device_id)
         if device_id != -1:
             try:
                 devlib.set_device(device_id)
@@ -192,13 +189,11 @@ class Rec:
         functions_dict[self.iterate.__name__] = self.iterate
         functions_dict[self.get_metric.__name__] = self.get_metric
         functions_dict[self.save_res.__name__] = self.save_res
-        functions_dict[self.close_dev.__name__] = self.close_dev
 
         done = False
         while not done:
             # cmd is a tuple containing name of the function, followed by arguments
             cmd = worker_qin.get()
-            print('cmd',cmd)
             if cmd == 'done':
                 done = True
             else:
@@ -212,7 +207,6 @@ class Rec:
 
 
     def init(self, dir=None, gen=None):
-        print('dir, gen', dir, gen)
         if self.ds_image is not None:
             first_run = False
             pass
@@ -243,7 +237,7 @@ class Rec:
         for f in iter_functions:
             flow_items_list.append(f.__name__)
 
-        flow = of.get_flow_arr(self.params, flow_items_list, 0, first_run)
+        self.is_pcdi, flow = of.get_flow_arr(self.params, flow_items_list, gen, first_run)
 
         self.flow = []
         (op_no, iter_no) = flow.shape
@@ -259,12 +253,9 @@ class Rec:
         self.prev_dir = dir
         self.sigma = self.params.support_sigma
         self.support_obj = Support(self.params, self.dims, dir)
-        if self.params.is_pcdi:
+        if self.is_pcdi:
             self.pcdi_obj = Pcdi(self.params, self.data, dir)
-        else:
-            self.is_pcdi = False
 
-            #        print('data norm', get_norm(self.data))
         if self.params.ll_sigmas is None:
             self.iter_data = self.data
         else:
@@ -287,9 +278,6 @@ class Rec:
 
         return 0
 
-        # print('in init , data type, norm', self.data.type(), get_norm(self.data))
-        # print('ds_image norm', get_norm(self.ds_image))
-
 
     def breed(self):
         breed_mode = self.params.breed_modes[self.gen]
@@ -300,7 +288,6 @@ class Rec:
 
 
     def iterate(self):
-        print ('starting iterate')
         start_t = time.time()
         for f in self.flow:
             f()
@@ -326,10 +313,9 @@ class Rec:
     def save_res(self, save_dir):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
-        print('saving, dir', save_dir)
         devlib.save(os.path.join(save_dir, 'image'), self.ds_image)
         devlib.save(os.path.join(save_dir, 'support'), self.support_obj.get_support())
-        if self.is_pcdi:  #TODO make sure the self.is_pcdi is set according to gen
+        if self.is_pcdi:
             devlib.save(os.path.join(save_dir, 'coherence'), self.pcdi_obj.kernel)
         # errs = np.asarray(list(self.errs))
         # np.save(os.path.join(save_dir, 'errors'), errs)
@@ -351,20 +337,6 @@ class Rec:
             calculated metric
         """
         return dvut.get_metric(self.ds_image, self.errs, metric_type)
-
-
-    def close_dev(self):
-        import cupy as cp
-        del self.ds_image
-        del self.rs_amplitudes
-        del self.params
-        del self.support_obj
-        del self.errs
-        del self.iter_data
-        del self.data
-        cp._default_memory_pool.free_all_blocks()
-        #device = self.ds_image.device
-        #device.__exit__()
 
 
     def save_metrics(errs, dir, metrics=None):
@@ -402,7 +374,6 @@ class Rec:
 
 
     def next(self):
-#        print('******** next')
         self.iter = self.iter + 1
         # the sigma used when recalculating support and data can be modified
         # by resolution trigger. So set the params to the configured values at the beginning
@@ -414,7 +385,6 @@ class Rec:
 
 
     def resolution_trigger(self):
-#        print('******** res_trig')
         if self.params.ll_dets is not None:
             sigmas = []
             for i in range(len(self.dims)):
@@ -431,31 +401,23 @@ class Rec:
 
 
     def shrink_wrap_trigger(self):
-#        print('******* shrink wrap')
         self.support_obj.update_amp(self.ds_image, self.sigma, self.params.support_threshold)
-#        print ('shrink wrap, support norm', get_norm(self.support_obj.get_support()))
 
 
     def phase_support_trigger(self):
-#        print('****** phase trig')
         self.support_obj.update_phase(self.ds_image)
 
 
     def to_reciprocal_space(self):
-#        print('******** to recip')
         dims = devlib.dims(self.ds_image)
         self.rs_amplitudes = devlib.ifft(self.ds_image) * devlib.size(self.data)
-#        print('ampl norm', get_norm(self.rs_amplitudes))
-        #  devlib.print(self.rs_amplitudes)
 
 
     def pcdi_trigger(self):
-#        print('**** pcdi trigger')
         self.pcdi_obj.update_partial_coherence(devlib.absolute(self.rs_amplitudes).copy())
 
 
     def pcdi(self):
-#        print('**** pcdi')
         abs_amplitudes = devlib.absolute(self.rs_amplitudes).copy()
         converged = self.pcdi_obj.apply_partial_coherence(abs_amplitudes)
         ratio = self.get_ratio(self.iter_data, devlib.absolute(converged))
@@ -466,52 +428,34 @@ class Rec:
 
 
     def no_pcdi(self):
-#        print('********** no pcdi')
         ratio = self.get_ratio(self.iter_data, devlib.absolute(self.rs_amplitudes))
-        # consider moving the error operation to cpu
         error = get_norm(devlib.where((self.rs_amplitudes > 0), (devlib.absolute(self.rs_amplitudes) - self.iter_data),
                                            0)) / get_norm(self.iter_data)
-#        print('error', error)
         self.errs.append(error)
         self.rs_amplitudes = self.rs_amplitudes * ratio
-#        print ('rs_ampl norm', get_norm(self.rs_amplitudes))
 
 
     def set_prev_pcdi_trigger(self):
-#        print('***** set prev')
         self.pcdi_obj.set_previous(devlib.absolute(self.rs_amplitudes).copy())
 
 
     def to_direct_space(self):
-#        print('********** to direct')
         dims = devlib.dims(self.rs_amplitudes)
         self.ds_image_raw = devlib.fft(self.rs_amplitudes) / devlib.size(self.data)
-#        print('image_raw norm', get_norm(self.ds_image_raw))
-        #   devlib.print(self.ds_image_raw)
 
 
     def er(self):
-#        print('********** er')
         self.ds_image = self.ds_image_raw * self.support_obj.get_support()
-#        print('image norm', get_norm(self.ds_image))
 
 
     def hio(self):
-#        print('*********** hio')
-#        print('image, image_raw norm', get_norm(self.ds_image), get_norm(self.ds_image_raw))
-        #adj_calc_image = self.ds_image_raw
         adj_calc_image = self.ds_image_raw * self.params.beta
-#        print('adj_calc_image', get_norm(adj_calc_image))
         combined_image = self.ds_image - adj_calc_image
-#        print('combined image norm', get_norm(combined_image))
         support = self.support_obj.get_support()
-#        print('support', get_norm(support))
         self.ds_image = devlib.where((support > 0), self.ds_image_raw, combined_image)
-#        print('image norm', get_norm(self.ds_image))
 
 
     def twin_trigger(self):
-#        print('******** twin trig')
         # mass center self.ds_image
         com = devlib.center_of_mass(self.ds_image)
         self.ds_image = devlib.shift(self.ds_image, com)
@@ -526,11 +470,9 @@ class Rec:
             self.ds_image[:, half_y:, :] = 0
         else:
             self.ds_image[:, : half_y, :] = 0
-#        print ('ds_image norm', get_norm(self.ds_image))
 
 
     def average_trigger(self):
-#        print('------aver trig')
         if self.aver is None:
             self.aver = devlib.to_numpy(devlib.absolute(self.ds_image))
             self.aver_iter = 1
