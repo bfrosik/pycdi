@@ -49,7 +49,9 @@ def algorithm_row(algorithm, algorithm_sequence):
     return row
 
 
-def get_flow_arr(params, flow_items_list, curr_gen, first_run=False):
+def get_flow_arr(params, flow_items_list, curr_gen=None, first_run=False):
+    # tha params hold the parsed values for the parameters, not triggers or algorithm sequence
+    # the triggers and algorithm sequence are parsed in this script which determines the functions
     success, config_map = params.read_config()
     algorithm_sequence = get_alg_seq(config_map.algorithm_sequence)
     iter_no = len(algorithm_sequence)
@@ -71,16 +73,23 @@ def get_flow_arr(params, flow_items_list, curr_gen, first_run=False):
                 flow_arr[i] = trigger_row(config_map.phase_support_trigger, iter_no)
         elif flow_items_list[i] == 'pcdi_trigger':
             if config_map.lookup('pcdi_trigger') is not None:
-                if config_map.gen_pcdi_start is None:
-                    flow_arr[i] = trigger_row(config_map.pcdi_trigger, iter_no)
-                    if first_run:
-                        pcdi_start = config_map.pcdi_trigger[0]
+                calculated_first_run = first_run
+                if curr_gen is not None:
+                    if config_map.lookup('gen_pcdi_start') is None:
+                        gen_pcdi_start = 0
                     else:
-                        pcdi_start = 0
-                    pcdi_row = i
-                elif curr_gen >= config_map.gen_pcdi_start:
+                        gen_pcdi_start = config_map.gen_pcdi_start
+                    if curr_gen < gen_pcdi_start:
+                        calculated_first_run = None
+                    elif curr_gen == gen_pcdi_start:
+                        calculated_first_run = True
+                    else:
+                        calculated_first_run = False
+                if calculated_first_run is None:
+                    pcdi_start = None
+                else:
                     flow_arr[i] = trigger_row(config_map.pcdi_trigger, iter_no)
-                    if curr_gen == config_map.gen_pcdi_start:
+                    if calculated_first_run:
                         pcdi_start = config_map.pcdi_trigger[0]
                     else:
                         pcdi_start = 0
@@ -108,7 +117,7 @@ def get_flow_arr(params, flow_items_list, curr_gen, first_run=False):
             if config_map.lookup('progress_trigger') is not None:
                 flow_arr[i] = trigger_row(config_map.progress_trigger, iter_no)
 
-    return flow_arr
+    return pcdi_start is not None, flow_arr
 
 #
 # conf = ut.read_config('/Users/bfrosik/test/a_54-66/conf/config_rec')
