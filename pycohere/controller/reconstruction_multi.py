@@ -253,7 +253,6 @@ def reconstruction(lib, conf_file, datafile, dir, devices):
     except AttributeError:
         filename = conf_file.split('/')[-1]
         save_dir = os.path.join(dir, filename.replace('config_rec', 'results'))
-#    print ('prev_dirs',prev_dirs)
 
     workers = [calc.Rec(pars, datafile) for _ in range(reconstructions)]
 
