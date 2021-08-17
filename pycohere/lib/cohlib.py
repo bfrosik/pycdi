@@ -82,6 +82,9 @@ class cohlib:
     def argmax(arr, axis=None):
         pass
 
+    def unravel_index(indices, shape):
+        pass
+
     def maximum(arr1, arr2):
         pass
 
