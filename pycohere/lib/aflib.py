@@ -104,6 +104,9 @@ class aflib(cohlib):
         val, idx = af.imax(arr, axis)
         return idx
 
+    def unravel_index(indices, shape):
+        return indices
+
     def ceil(arr):
         return af.ceil(arr)
 
