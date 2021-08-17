@@ -22,7 +22,7 @@ import shutil
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
-import pycohere.utilities.utils as ut
+import cohere.src_py.utilities.utils as ut
 import importlib
 import config_verifier as ver
 
@@ -215,6 +215,10 @@ class cdi_gui(QWidget):
         self.create_exp_button.clicked.connect(self.set_experiment)
 
 
+    def set_args(self, args):
+        self.args = args
+
+
     def set_spec_file(self):
         """
         Calls selection dialog. The selected spec file is parsed.
@@ -272,7 +276,7 @@ class cdi_gui(QWidget):
         if self.working_dir is None:
             return False
         exp_id = str(self.Id_widget.text()).strip()
-        scan = str(self.scan_widget.text()).strip()
+        scan = str(self.scan_widget.text()).replace(' ','')
         if scan != '':
             exp_id = exp_id + '_' + scan
         if not os.path.exists(os.path.join(self.working_dir, exp_id)):
@@ -324,7 +328,7 @@ class cdi_gui(QWidget):
             self.t.clear_configs()
             self.t.load_conf(load_dir)
 
-            self.set_experiment()
+            self.set_experiment(True)
         else:
             msg_window('please select valid conf directory')
 
@@ -437,7 +441,7 @@ class cdi_gui(QWidget):
             os.makedirs(experiment_conf_dir)
 
 
-    def set_experiment(self):
+    def set_experiment(self, new_exp=False):
         """
         Reads the parameters in the window, and sets the experiment to this values, i.e. creates experiment directory,
         and saves all configuration files with parameters from window.
@@ -455,7 +459,7 @@ class cdi_gui(QWidget):
             return
         conf_map = {}
 
-        self.scan = str(self.scan_widget.text()).strip()
+        self.scan = str(self.scan_widget.text()).replace(' ','')
         if len(self.scan) > 0:
             scans = self.scan.split('-')
             if len(scans) > 2:
@@ -475,16 +479,17 @@ class cdi_gui(QWidget):
         self.experiment_dir = os.path.join(self.working_dir, self.exp_id)
         self.assure_experiment_dir()
 
-        # read the configurations from GUI and write to experiment config files
-        # save the main config
-        conf_map['working_dir'] = '"' + str(self.working_dir).strip() + '"'
-        conf_map['experiment_id'] = '"' + self.id + '"'
-        if len(self.beamline_widget.text().strip()) > 0:
-            conf_map['beamline'] = '"' + str(self.beamline_widget.text().strip()) + '"'
-            self.beamline = self.beamline_widget.text().strip()
-        if self.specfile is not None:
-            conf_map['specfile'] = '"' + str(self.specfile).strip() + '"'
-        write_conf(conf_map, os.path.join(self.experiment_dir, 'conf'), 'config')
+        if not new_exp:
+            # read the configurations from GUI and write to experiment config files
+            # save the main config
+            conf_map['working_dir'] = '"' + str(self.working_dir).strip() + '"'
+            conf_map['experiment_id'] = '"' + self.id + '"'
+            if len(self.beamline_widget.text().strip()) > 0:
+                conf_map['beamline'] = '"' + str(self.beamline_widget.text().strip()) + '"'
+                self.beamline = self.beamline_widget.text().strip()
+            if self.specfile is not None:
+                conf_map['specfile'] = '"' + str(self.specfile).strip() + '"'
+            write_conf(conf_map, os.path.join(self.experiment_dir, 'conf'), 'config')
 
         if self.t is None:
             try:
@@ -493,7 +498,8 @@ class cdi_gui(QWidget):
             except:
                 pass
 
-        self.t.save_conf()
+        if not new_exp:
+            self.t.save_conf()
 
 
 class Tabs(QTabWidget):
@@ -512,7 +518,8 @@ class Tabs(QTabWidget):
         if self.main_win.beamline is not None:
             try:
                 beam = importlib.import_module('beamlines.' + self.main_win.beamline + '.beam_tabs')
-            except:
+            except Exception as e:
+                print (e)
                 msg_window('cannot import beamlines.' + self.main_win.beamline + ' module' )
                 raise
             self.prep_tab = beam.PrepTab()
@@ -549,9 +556,9 @@ class Tabs(QTabWidget):
     def run_prep(self):
         import run_prep as prep
 
-        prep.handle_prep(self.main_win.experiment_dir)
-
-
+        # this line is passing all parameters from command line to prep script. 
+        # if there are other parameters, one can add some code here
+        prep.handle_prep(self.main_win.experiment_dir, self.main_win.args)
 
     def run_viz(self):
         import run_disp as dp
@@ -914,9 +921,9 @@ class RecTab(QWidget):
         self.cont_dir_label = QLabel('    cont dir')
         hbox.addWidget(self.cont_dir_label)
         self.cont_dir_label.hide()
-        self.cont_dir = QLineEdit()
-        hbox.addWidget(self.cont_dir)
-        self.cont_dir.hide()
+        self.cont_dir_button = QPushButton()
+        hbox.addWidget(self.cont_dir_button)
+        self.cont_dir_button.hide()
         ulayout.addRow(hbox)
 
         self.add_conf_button = QPushButton('add configuration', self)
@@ -927,11 +934,6 @@ class RecTab(QWidget):
         ulayout.addWidget(self.rec_id)
         self.rec_id.hide()
         self.proc = QComboBox()
-        self.proc.addItem("auto")
-        if sys.platform != 'darwin':
-            self.proc.addItem("cp")
-        self.proc.addItem("np")
-        self.proc.addItem("af")
         if sys.platform != 'darwin':
             self.proc.addItem("cuda")
         self.proc.addItem("opencl")
@@ -971,6 +973,7 @@ class RecTab(QWidget):
         self.setAutoFillBackground(True)
         self.setLayout(layout)
 
+        self.cont_dir_button.clicked.connect(self.set_cont_dir)
         self.config_rec_button.clicked.connect(self.run_tab)
         self.cont.stateChanged.connect(self.toggle_cont)
         self.rec_default_button.clicked.connect(self.set_defaults)
@@ -1070,9 +1073,10 @@ class RecTab(QWidget):
         if len(self.beta.text()) > 0:
             conf_map['beta'] = str(self.beta.text())
         if len(self.support_area.text()) > 0:
-            conf_map['support_area'] = str(self.support_area.text())
+            conf_map['support_area'] = str(self.support_area.text()).replace('\n','')
         if self.cont.isChecked():
-            conf_map['continue_dir'] = str(self.cont_dir.text())
+            if len(self.cont_dir_button.text().strip()) > 0:
+                conf_map['continue_dir'] = '"' + str(self.cont_dir_button.text()).strip() + '"'
 
         for feat_id in self.features.feature_dir:
             self.features.feature_dir[feat_id].add_config(conf_map)
@@ -1100,10 +1104,28 @@ class RecTab(QWidget):
         """
         if self.cont.isChecked():
             self.cont_dir_label.show()
-            self.cont_dir.show()
+            self.cont_dir_button.show()
         else:
             self.cont_dir_label.hide()
-            self.cont_dir.hide()
+            self.cont_dir_button.hide()
+
+
+    def set_cont_dir(self):
+        """
+        It display a select dialog for user to select a directory with raw data file.
+        Parameters
+        ----------
+        none
+        Returns
+        -------
+        nothing
+        """
+        cont_dir = select_dir(os.getcwd())
+        if cont_dir is not None:
+            self.cont_dir_button.setStyleSheet("Text-align:left")
+            self.cont_dir_button.setText(cont_dir)
+        else:
+            self.cont_dir_button.setText('')
 
 
     def add_rec_conf(self):
@@ -1207,7 +1229,10 @@ class RecTab(QWidget):
         else:
             found_file = False
             for p, d, f in os.walk(self.main_win.experiment_dir):
-                if 'prep_data.tif' in f:
+                if 'data.tif' in f:
+                    found_file = True
+                    break
+                if 'data.npy' in f:
                     found_file = True
                     break
             if found_file:
@@ -1477,6 +1502,10 @@ class GA(Feature):
             self.lr_sigmas.setText(str(conf_map.ga_low_resolution_sigmas).replace(" ", ""))
         except AttributeError:
             pass
+        try:
+            self.gen_pcdi_start.setText(str(conf_map.gen_pcdi_start).replace(" ", ""))
+        except AttributeError:
+            pass
 
 
     def fill_active(self, layout):
@@ -1504,6 +1533,8 @@ class GA(Feature):
         layout.addRow("after breed support sigmas", self.ga_support_sigmas)
         self.lr_sigmas = QLineEdit()
         layout.addRow("low resolution sigmas", self.lr_sigmas)
+        self.gen_pcdi_start = QLineEdit()
+        layout.addRow("gen to start pcdi", self.gen_pcdi_start)
 
 
     def rec_default(self):
@@ -1523,6 +1554,7 @@ class GA(Feature):
         self.ga_support_thresholds.setText('(.1,.1,.1,.1,.1)')
         self.ga_support_sigmas.setText('(1.0,1.0,1.0,1.0)')
         self.lr_sigmas.setText('(2.0,1.5)')
+        self.gen_pcdi_start.setText('3')
         self.active.setChecked(True)
 
 
@@ -1544,6 +1576,7 @@ class GA(Feature):
         conf_map['ga_support_thresholds'] = str(self.ga_support_thresholds.text()).replace('\n','')
         conf_map['ga_support_sigmas'] = str(self.ga_support_sigmas.text()).replace('\n','')
         conf_map['ga_low_resolution_sigmas'] = str(self.lr_sigmas.text()).replace('\n','')
+        conf_map['gen_pcdi_start'] = str(self.gen_pcdi_start.text())
 
 
 class low_resolution(Feature):
@@ -2180,15 +2213,16 @@ class Features(QWidget):
         self.Stack.setCurrentIndex(i)
 
 
-def main():
+def main(args):
     """
     Starts GUI application.
     """
-    app = QApplication(sys.argv)
+    app = QApplication(args)
     ex = cdi_gui()
+    ex.set_args(args)
     ex.show()
     sys.exit(app.exec_())
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv[1:])
