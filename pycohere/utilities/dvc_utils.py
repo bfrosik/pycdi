@@ -85,7 +85,7 @@ def shrink_wrap(arr, threshold, distribution, support=None):
     max_convag = dvclib.amax(convag)
     convag = convag / max_convag
     if support is None:
-        support = dvclib.full(1, dvclib.shape(convag))
+        support = dvclib.full(dvclib.dims(convag), 1)
     support = dvclib.where(convag >= threshold, support, 0)
     support = dvclib.where(convag >= threshold, 1, support)
     return support
@@ -215,7 +215,6 @@ def get_metric(image, errs, metric_type):
         calculated metric for a given type
     """
     if metric_type == 'chi':
-        print ('err type', type(errs))
         return errs[-1]
     elif metric_type == 'sharpness':
         return dvclib.sum(dvclib.square(dvclib.square(dvclib.absolute(image))))
@@ -301,11 +300,12 @@ def dftregistration(ref_arr, arr, usfac=2):
     # Embed Fourier data in a 2x larger array
     shape = ref_arr.shape
     large_shape = tuple(2 * x for x in ref_arr.shape)
-    c_c = pad_around(dvclib2.fftshift(ref_arr) * dvclib.conj(dvclib2.fftshift(arr)), large_shape, val=0)
+    c_c = pad_around(dvclib2.fftshift(ref_arr) * dvclib.conj(dvclib2.fftshift(arr)), large_shape, val=0j)
 
     # Compute crosscorrelation and locate the peak
     c_c = dvclib2.ifft(dvclib2.ifftshift(c_c))    #TODO will not work for aflib
-    max_coord = dvclib2.argmax(c_c)
+    max_coord = dvclib2.unravel_index(dvclib2.argmax(c_c), c_c.shape)
+
     if max_coord[0] > shape[0]:
         row_shift = max_coord[0] - large_shape[0]
     else:
@@ -330,7 +330,7 @@ def dftregistration(ref_arr, arr, usfac=2):
                              int(dftshift - row_shift * usfac), int(dftshift - col_shift * usfac))) / \
               (int(math.trunc(shape[0] / 2)) * int(math.trunc(shape[1] / 2)) * usfac ^ 2)
         # Locate maximum and map back to original pixel grid
-        max_coord = dvclib2.argmax(c_c)
+        max_coord = dvclib2.unravel_index(dvclib2.argmax(c_c), c_c.shape)
         [rloc, cloc] = max_coord
 
         rloc = rloc - dftshift
