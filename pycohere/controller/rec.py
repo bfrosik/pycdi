@@ -443,7 +443,6 @@ class Rec:
     def to_direct_space(self):
         dims = devlib.dims(self.rs_amplitudes)
         self.ds_image_raw = devlib.fft(self.rs_amplitudes) / devlib.size(self.data)
-        print('image center', devlib.center_of_mass(self.ds_image))
 
 
     def er(self):
