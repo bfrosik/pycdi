@@ -71,6 +71,9 @@ def get_flow_arr(params, flow_items_list, curr_gen=None, first_run=False):
         elif flow_items_list[i] == 'phase_support_trigger' and first_run:
             if config_map.lookup('phase_support_trigger') is not None:
                 flow_arr[i] = trigger_row(config_map.phase_support_trigger, iter_no)
+        elif flow_items_list[i] == 'new_func_trigger':
+            if config_map.lookup('new_func_trigger') is not None:
+                flow_arr[i] = trigger_row(config_map.new_func_trigger, iter_no)
         elif flow_items_list[i] == 'pcdi_trigger':
             if config_map.lookup('pcdi_trigger') is not None:
                 calculated_first_run = first_run
