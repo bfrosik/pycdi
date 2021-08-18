@@ -178,6 +178,7 @@ class Rec:
         # in the formatted data the max is in the center, we want it in the corner, so do fft shift
         self.data = devlib.fftshift(devlib.absolute(data))
         self.dims = devlib.dims(self.data)
+        print ('data shape', self.dims)
         return 0
 
 
@@ -442,6 +443,7 @@ class Rec:
     def to_direct_space(self):
         dims = devlib.dims(self.rs_amplitudes)
         self.ds_image_raw = devlib.fft(self.rs_amplitudes) / devlib.size(self.data)
+        print('image center', devlib.center_of_mass(self.ds_image))
 
 
     def er(self):
@@ -456,9 +458,10 @@ class Rec:
 
 
     def twin_trigger(self):
-        # mass center self.ds_image
+        # TODO this will work only for 3D array, but will the twin be used for 1D or 2D?
         com = devlib.center_of_mass(self.ds_image)
-        self.ds_image = devlib.shift(self.ds_image, com)
+        sft = [int(self.dims[i]/2-com[i]) for i in range(len(self.dims))]
+        self.ds_image = devlib.shift(self.ds_image, sft)
         dims = self.ds_image.shape
         half_x = int((dims[0] + 1) / 2)
         half_y = int((dims[1] + 1) / 2)
