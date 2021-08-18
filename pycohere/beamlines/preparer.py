@@ -11,7 +11,7 @@ class PrepData:
     missing, it will
     """
 
-    def __init__(self, experiment_dir, *args):
+    def __init__(self, experiment_dir, *args, **kwargs):
         """
         Creates PrepData instance. Sets fields to configuration parameters.
         Parameters
@@ -26,7 +26,7 @@ class PrepData:
 
 
     # Pooling the read and align since that takes a while for each array
-    def prep_data(self, dirs, indexes):
+    def prep_data(self, dirs, indexes, **kwargs):
         """
         Creates prep_data.tif file in <experiment_dir>/prep directory or multiple prep_data.tif in <experiment_dir>/<scan_<scan_no>>/prep directories.
         Parameters
@@ -49,9 +49,9 @@ class PrepData:
 
         if separate_scans:
             self.dirs = dirs
-            self.scans = scans
+            self.scans = indexes
             with Pool(processes=min(len(dirs), cpu_count())) as pool:
-                pool.map_async(self.read_write, indexes)
+                pool.map_async(self.read_write, range(len(dirs)))
                 pool.close()
                 pool.join()
         else:
@@ -83,16 +83,16 @@ class PrepData:
             self.write_prep_arr(sumarr)
 
 
-    def read_write(self, index):
+    def read_write(self, index, **kwargs):
         arr = self.read_scan(self.dirs[index])
         self.write_prep_arr(arr, self.scans[index])
 
 
-    def get_dirs(self, **args):
+    def get_dirs(self, **kwargs):
         pass
 
 
-    def read_scan(self, dir, **args):
+    def read_scan(self, dir, **kwargs):
         """
         Reads raw data files from scan directory, applies correction, and returns 3D corrected data for a single scan directory.
         The correction is detector dependent. It can be darkfield and/ot whitefield correction.
@@ -112,7 +112,7 @@ class PrepData:
         pass
 
 
-    def read_align(self, dir):
+    def read_align(self, dir, **kwargs):
         """
         Aligns scan with reference array.  Referrence array is field of this class.
         Parameters
@@ -134,5 +134,5 @@ class PrepData:
         return None
 
 
-    def set_detector(self, det_obj, map):
+    def set_detector(self, det_obj, map, **kwargs):
         pass
