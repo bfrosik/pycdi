@@ -197,6 +197,12 @@ class Params:
             else:
                 self.phase_max = 1.57
 
+        if conf.lookup('new_func_trigger') is not None:
+            if conf.lookup('new_param') is not None:
+                self.new_param = conf.new_param
+            else:
+                self.new_param = 0
+
         if conf.lookup('pcdi_trigger') is not None:
             self.is_pcdi = True
             if conf.lookup('partial_coherence_type') is not None:
