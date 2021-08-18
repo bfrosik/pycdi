@@ -157,7 +157,6 @@ def reconstruction(lib, conf_file, datafile, dir, dev):
         continue_dir = None
     else:
         continue_dir = pars.continue_dir
-    print('cnt dir', continue_dir)
 
     try:
         save_dir = pars.save_dir
