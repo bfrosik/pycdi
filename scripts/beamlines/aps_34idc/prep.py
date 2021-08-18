@@ -43,7 +43,7 @@ class BeamPrepData(PrepData):
     The class uses helper functions to prepare the data.
     """
 
-    def __init__(self, experiment_dir, main_conf_map, prep_conf_map, **args):
+    def __init__(self, experiment_dir, main_conf_map, prep_conf_map, *args, **kwargs):
         """
         Creates PrepData instance for beamline aps_34idc. Sets fields to configuration parameters.
         Parameters
