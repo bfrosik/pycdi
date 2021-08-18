@@ -201,7 +201,7 @@ class Params:
             if conf.lookup('new_param') is not None:
                 self.new_param = conf.new_param
             else:
-                self.new_param = 0
+                self.new_param = 1
 
         if conf.lookup('pcdi_trigger') is not None:
             self.is_pcdi = True
