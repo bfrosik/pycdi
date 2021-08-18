@@ -1804,6 +1804,74 @@ class phase_support(Feature):
         conf_map['phase_max'] = str(self.phase_max.text())
 
 
+class new_feat(Feature):
+    """
+    This class is test for adding a new feature.
+    """
+
+    def __init__(self):
+        super(progress, self).__init__()
+        self.id = 'new_feat'
+
+    def init_config(self, conf_map):
+        """
+        This function sets progress feature's parameters to parameters in dictionary and displays in the window.
+        Parameters
+        ----------
+        conf_map : dict
+            contains parameters for reconstruction
+        Returns
+        -------
+        nothing
+        """
+        try:
+            triggers = conf_map.new_func_trigger
+            self.active.setChecked(True)
+            self.progress_triggers.setText(str(triggers).replace(" ", ""))
+        except AttributeError:
+            self.active.setChecked(False)
+            return
+
+    def fill_active(self, layout):
+        """
+        This function displays the feature's parameters when the feature becomes active.
+        Parameters
+        ----------
+        layout : Layout widget
+            a layout with the feature
+        Returns
+        -------
+        nothing
+        """
+        self.new_func_triggers = QLineEdit()
+        layout.addRow("new func triggers", self.new_func_triggers)
+
+    def rec_default(self):
+        """
+        This function sets progress feature's parameters to hardcoded default values.
+        Parameters
+        ----------
+        none
+        Returns
+        -------
+        nothing
+        """
+        self.new_func_triggers.setText('(0,5)')
+
+    def add_feat_conf(self, conf_map):
+        """
+        This function adds progress feature's parameters to dictionary.
+        Parameters
+        ----------
+        conf_map : dict
+            contains parameters for reconstruction
+        Returns
+        -------
+        nothing
+        """
+        conf_map['new_func_trigger'] = str(self.new_func_triggers.text()).replace('\n', '')
+
+
 class pcdi(Feature):
     """
     This class encapsulates pcdi feature.
@@ -2126,12 +2194,13 @@ class Features(QWidget):
         Constructor, creates all concrete feature objects, and displays in window.
         """
         super(Features, self).__init__()
-        feature_ids = ['GA', 'low resolution', 'shrink wrap', 'phase support', 'pcdi', 'twin', 'average', 'progress']
+        feature_ids = ['GA', 'low resolution', 'shrink wrap', 'phase support', 'new_feat', 'pcdi', 'twin', 'average', 'progress']
         self.leftlist = QListWidget()
         self.feature_dir = {'GA': GA(),
                             'low resolution': low_resolution(),
                             'shrink wrap': shrink_wrap(),
                             'phase support': phase_support(),
+                            'new_feat':new_feat(),
                             'pcdi': pcdi(),
                             'twin': twin(),
                             'average': average(),
