@@ -223,7 +223,7 @@ class Rec:
                           self.shrink_wrap_trigger,
                           self.phase_support_trigger,
                           self.to_reciprocal_space,
-                          self.new_func,
+                          self.new_func_trigger,
                           self.pcdi_trigger,
                           self.pcdi,
                           self.no_pcdi,
@@ -415,8 +415,8 @@ class Rec:
         self.rs_amplitudes = devlib.ifft(self.ds_image) * devlib.size(self.data)
 
 
-    def new_func(self):
-        print('in new_func, new_param', self.params.new_param)
+    def new_func_trigger(self):
+        print('in new_func_trigger, new_param', self.params.new_param)
         
         
     def pcdi_trigger(self):
