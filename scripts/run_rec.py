@@ -89,16 +89,16 @@ def get_gpu_use(devices, no_dir, no_rec, data_shape):
         a list of int indicating number of runs per consecuitive GPUs
     """
     from functools import reduce
-				
+
     if sys.platform == 'darwin':
         # the gpu library is not working on OSX, so run one reconstruction on each GPU
-        gpu_load = len(devices) * [1,]
+        gpu_load = len(devices) * [1, ]
     else:
         # find size of data array
         data_size = reduce((lambda x, y: x * y), data_shape)
         rec_mem_size = data_size / MEM_FACTOR
         gpu_load = ut.get_gpu_load(rec_mem_size, devices)
-						
+
     no_runs = no_dir * no_rec
     gpu_distribution = ut.get_gpu_distribution(no_runs, gpu_load)
     gpu_use = []
@@ -121,7 +121,7 @@ def get_gpu_use(devices, no_dir, no_rec, data_shape):
 def manage_reconstruction(proc, experiment_dir, rec_id=None):
     """
     This function starts the interruption discovery process and continues the recontruction processing.
-    
+
     It reads configuration file defined as <experiment_dir>/conf/config_rec.
     If multiple generations are configured, or separate scans are discovered, it will start concurrent reconstructions.
     It creates image.npy file for each successful reconstruction.
@@ -163,7 +163,7 @@ def manage_reconstruction(proc, experiment_dir, rec_id=None):
             return
     except Exception as e:
         print('Cannot parse configuration file ' + conf_file + ' , check for matching parenthesis and quotations')
-        print (str(e))
+        print(str(e))
         return
 
     # find which librarry to run it on, default is numpy ('np')
@@ -192,7 +192,7 @@ def manage_reconstruction(proc, experiment_dir, rec_id=None):
             print('arrayfire is not installed, select different library (proc)')
             return
     else:
-        print ('invalid "proc" value', proc, 'is not supported')
+        print('invalid "proc" value', proc, 'is not supported')
         return
 
     # exp_dirs_data list hold pairs of data and directory, where the directory is the root of data/data.tif file, and
@@ -241,7 +241,7 @@ def manage_reconstruction(proc, experiment_dir, rec_id=None):
         except:
             devices = [-1]
 
-        if no_runs * reconstructions > 1: 
+        if no_runs * reconstructions > 1:
             data_shape = ut.read_tif(exp_dirs_data[0][0]).shape
             device_use = get_gpu_use(devices, no_runs, reconstructions, data_shape)
         else:
