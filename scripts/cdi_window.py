@@ -1810,12 +1810,12 @@ class new_feat(Feature):
     """
 
     def __init__(self):
-        super(progress, self).__init__()
+        super(new_feat, self).__init__()
         self.id = 'new_feat'
 
     def init_config(self, conf_map):
         """
-        This function sets progress feature's parameters to parameters in dictionary and displays in the window.
+        This function sets new_feat feature's parameters to parameters in dictionary and displays in the window.
         Parameters
         ----------
         conf_map : dict
@@ -1827,10 +1827,15 @@ class new_feat(Feature):
         try:
             triggers = conf_map.new_func_trigger
             self.active.setChecked(True)
-            self.progress_triggers.setText(str(triggers).replace(" ", ""))
+            self.new_feat_triggers.setText(str(triggers).replace(" ", ""))
         except AttributeError:
             self.active.setChecked(False)
             return
+        try:
+            self.new_param.setText(str(conf_map.new_param).replace(" ", ""))
+        except AttributeError:
+            pass
+
 
     def fill_active(self, layout):
         """
@@ -1845,6 +1850,8 @@ class new_feat(Feature):
         """
         self.new_func_triggers = QLineEdit()
         layout.addRow("new func triggers", self.new_func_triggers)
+        self.new_param = QLineEdit()
+        layout.addRow("new parameter", self.new_param)
 
     def rec_default(self):
         """
@@ -1857,6 +1864,7 @@ class new_feat(Feature):
         nothing
         """
         self.new_func_triggers.setText('(0,5)')
+        self.new_param.setText('1')
 
     def add_feat_conf(self, conf_map):
         """
@@ -1870,6 +1878,7 @@ class new_feat(Feature):
         nothing
         """
         conf_map['new_func_trigger'] = str(self.new_func_triggers.text()).replace('\n', '')
+        conf_map['new_param'] = str(self.new_param.text())
 
 
 class pcdi(Feature):
