@@ -1827,7 +1827,7 @@ class new_feat(Feature):
         try:
             triggers = conf_map.new_func_trigger
             self.active.setChecked(True)
-            self.new_feat_triggers.setText(str(triggers).replace(" ", ""))
+            self.new_func_triggers.setText(str(triggers).replace(" ", ""))
         except AttributeError:
             self.active.setChecked(False)
             return
