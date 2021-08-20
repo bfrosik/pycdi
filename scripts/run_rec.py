@@ -285,7 +285,7 @@ def manage_reconstruction(proc, experiment_dir, rec_id=None):
                 del processes[pid]
             datafile = exp_dirs_data[index][0]
             dir = exp_dirs_data[index][1]
-            p = Process(target=rec_process, args=(proc, conf_file, datafile, dir, gpus, r, q))
+            p = Process(target=rec_process, args=(lib, conf_file, datafile, dir, gpus, r, q))
             p.start()
             processes[p.pid] = index
             index += 1
