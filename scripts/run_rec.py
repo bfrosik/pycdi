@@ -23,6 +23,7 @@ import sys
 import signal
 import os
 import argparse
+import time
 from multiprocessing import Process, Queue
 import pycohere.controller.reconstruction as rec
 import pycohere.controller.gen_rec as gen_rec
@@ -139,6 +140,8 @@ def manage_reconstruction(proc, experiment_dir, rec_id=None):
     -------
     nothing
     """
+    print('starting reconstruction')
+
     # the rec_id is a postfix added to config_rec configuration file. If defined, use this configuration.
     conf_dir = os.path.join(experiment_dir, 'conf')
     if rec_id is None:
@@ -294,6 +297,7 @@ def manage_reconstruction(proc, experiment_dir, rec_id=None):
         while len(processes.items()) > 0:
             pid, gpus = q.get()
             os.kill(pid, signal.SIGKILL)
+            time.sleep(.1)
             del processes[pid]
         q.close()
 
