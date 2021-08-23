@@ -40,62 +40,6 @@ def set_lib(pkg, ndim=None):
     calc.set_lib(devlib, pkg=='af')
 
 
-def single_rec(proc, save_dir, data, pars, dev, continue_dir=None):
-    """
-    This function starts reconstruction and returns results.
-
-    Parameters
-    ----------
-    proc : str
-        a string indicating the processor type (cpu, cuda or opencl)
-
-    data : numpy array
-        data array
-
-    pars : Object
-        Params object containing parsed configuration
-
-    dev : int
-        id defining the GPU this reconstruction will be utilizing, or -1 if running cpu or the gpu assignment is left to OS
-
-    image : numpy array
-        reconstructed image for further reconstruction, or None if initial
-
-    support : numpy array
-        support of previous reconstructed image, or None
-
-    coh : numpy array
-        coherence of previous reconstructed images, or None
-
-    Returns
-    -------
-    image : numpy array
-        reconstructed image
-    support : numpy array
-        support of reconstructed images
-    coh : numpy array
-        coherence of reconstructed images
-    er : list
-        a vector containing errors for each iteration
-    reciprocal : ndarray
-        the array converted to reciprocal space
-    flow : ndarray
-        info to scientist/developer; a list of functions  that can run in one iterations (excluding inactive features)
-    iter_array : ndarray
-        info to scientist/developer; an array of 0s and 1s, 1 meaning the function in flow will be executed in iteration, 0 otherwise
-    """
-    # devlib.set_backend(proc)
-    # if dev != -1:
-    #     devlib.set_device(dev)
-    #
-    # worker = calc.Rec(pars, devlib.from_numpy(devlib.absolute(data)), continue_dir)
-    # ret_code = worker.iterate()
-    # if ret_code != 0:
-    #     worker.save_res(save_dir)
-    #
-    # return ret_code
-    #
-
 def reconstruction(lib, conf_file, datafile, dir, dev):
     """
     Controls single reconstruction.
@@ -166,13 +110,7 @@ def reconstruction(lib, conf_file, datafile, dir, dev):
 
     worker = calc.Rec(pars, datafile)
 
-    try:
-        worker.init_dev(dev[0])
-    except EnvironmentError:
-        print ('cannot load on device ID', dev)
-        return
-    except ValueError:
-        print('could not load data file', datafile)
+    if worker.init_dev(dev[0]) < 0:
         return
 
     worker.init(continue_dir)
