@@ -72,26 +72,22 @@ def single_rec_process(metric_type, gen, rec_attrs):
         a calculated characteristic of the image array defined by the metric
     """
     worker, prev_dir, save_dir = rec_attrs
-    try:
-        worker.init_dev(gpu)
-    except EnvironmentError:
-        print('cannot load on device ID', gpu)
-        return
-    except ValueError:
-        print('could not load data file')
-        return
-    worker.init(prev_dir, gen)
-
-    if gen is not None and gen > 0:
-        worker.breed()
-
-    ret_code = worker.iterate()
-    if ret_code == 0:
-        worker.save_res(save_dir)
-        metric = worker.get_metric(metric_type)
-    else:    # bad reconstruction
+    if worker.init_dev(gpu) < 0:
+        worker = None
         metric = None
-    worker = None    # TODO check if this clear the GPU
+    else:
+        worker.init(prev_dir, gen)
+
+        if gen is not None and gen > 0:
+            worker.breed()
+
+        ret_code = worker.iterate()
+        if ret_code == 0:
+            worker.save_res(save_dir)
+            metric = worker.get_metric(metric_type)
+        else:    # bad reconstruction
+            metric = None
+        worker = None    # TODO check if this clear the GPU
     return metric
 
 
