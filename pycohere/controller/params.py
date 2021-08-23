@@ -92,7 +92,7 @@ class Params:
             if conf.lookup('ga_cullings') is not None:
                 worst_remove_no = list(conf.ga_cullings)
                 if len(worst_remove_no) < self.generations:
-                    worst_remove_no = self.worst_remove_no + [0, ] * (self.generations - len(self.worst_remove_no))
+                    worst_remove_no = worst_remove_no + [0, ] * (self.generations - len(worst_remove_no))
             else:
                 worst_remove_no = [0, ] * self.generations
             # calculate how many reconstructions should continue
