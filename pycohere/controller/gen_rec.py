@@ -289,80 +289,92 @@ def reconstruction(lib, conf_file, datafile, dir, devices):
                 worker_qout = mp.Queue()
                 process = mp.Process(target=worker.fast_ga, args=(worker_qin, worker_qout))
                 process.start()
-                processes[process.pid] = [process, worker_qin, worker_qout]
+                processes[process.pid] = [worker_qin, worker_qout]
 
             prev_dirs = None
             for g in range(generations):
                 if g == 0:
                     for pid in processes:
-                        worker_qin = processes[pid][1]
+                        worker_qin = processes[pid][0]
                         worker_qin.put(('init_dev', devices.pop()))
+                    bad_processes = []
                     for pid in processes:
-                        worker_qout = processes[pid][2]
+                        worker_qout = processes[pid][1]
                         ret = worker_qout.get()
-                bad_processes = []
+                        if ret < 0:
+                            worker_qin = processes[pid][0]
+                            worker_qin.put('done')
+                            bad_processes.append(pid)
+                    # remove bad processes from dict (in the future we may reuse them)
+                    for pid in bad_processes:
+                        processes.pop(pid)
                 for pid in processes:
-                    worker_qin = processes[pid][1]
+                    worker_qin = processes[pid][0]
                     if prev_dirs is None:
                         prev_dir = None
                     else:
                         prev_dir = prev_dirs[pid]
                     worker_qin.put(('init', prev_dir, g))
                 for pid in processes:
-                    worker_qout = processes[pid][2]
+                    worker_qout = processes[pid][1]
                     ret = worker_qout.get()
                 if g > 0:
                     for pid in processes:
-                        worker_qin = processes[pid][1]
+                        worker_qin = processes[pid][0]
                         worker_qin.put('breed')
                     for pid in processes:
-                        worker_qout = processes[pid][2]
+                        worker_qout = processes[pid][1]
                         ret = worker_qout.get()
                 for pid in processes:
-                    worker_qin = processes[pid][1]
+                    worker_qin = processes[pid][0]
                     worker_qin.put('iterate')
+                bad_processes = []
                 for pid in processes:
-                    worker_qout = processes[pid][2]
+                    worker_qout = processes[pid][1]
                     ret = worker_qout.get()
                     if ret < 0:
+                        worker_qin = processes[pid][0]
+                        worker_qin.put('done')
                         bad_processes.append(pid)
-                # remove bad processes from dict and terminate them (in the future we may reuse them)
+                # remove bad processes from dict (in the future we may reuse them)
                 for pid in bad_processes:
-                    processes[pid][0].terminate()
                     processes.pop(pid)
                 # get metric, i.e the goodness of reconstruction from each run
                 proc_metrics = {}
                 for pid in processes:
-                    worker_qin = processes[pid][1]
+                    worker_qin = processes[pid][0]
                     metric_type = pars.metrics[g]
                     worker_qin.put(('get_metric', metric_type))
                 for pid in processes:
-                    worker_qout = processes[pid][2]
+                    worker_qout = processes[pid][1]
                     metric = worker_qout.get()
                     proc_metrics[pid] = metric
                 # order processes by metric
                 proc_ranks = gen_obj.order_processes(proc_metrics)
                 # cull
                 culled_proc_ranks = gen_obj.cull(proc_ranks)
-                # remove culled processes from list and terminate them (in the future we may reuse them)
+                # remove culled processes from list (in the future we may reuse them)
                 for i in range(len(culled_proc_ranks), len(proc_ranks)):
                     pid = proc_ranks[i][0]
-                    processes[pid][0].terminate()
+                    worker_qin = processes[pid][0]
+                    worker_qin.put('done')
                     processes.pop(pid)
                 # save results, we may modify it later to save only some
                 gen_save_dir = os.path.join(save_dir, 'g_' + str(g))
                 prev_dirs = {}
                 for i in range(len(culled_proc_ranks)):
                     pid = culled_proc_ranks[i][0]
-                    worker_qin = processes[pid][1]
+                    worker_qin = processes[pid][0]
                     worker_qin.put(('save_res', os.path.join(gen_save_dir, str(i))))
                     prev_dirs[pid] = os.path.join(gen_save_dir, str(i))
                 for pid in processes:
-                    worker_qout = processes[pid][2]
+                    worker_qout = processes[pid][1]
                     ret = worker_qout.get()
+                if len(processes) == 0:
+                    break
                 gen_obj.next_gen()
             for pid in processes:
-                worker_qin = processes[pid][1]
+                worker_qin = processes[pid][0]
                 worker_qin.put('done')
         else:
             rec = multi
