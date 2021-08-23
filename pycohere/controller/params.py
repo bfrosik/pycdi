@@ -150,7 +150,7 @@ class Params:
 
             if conf.lookup('ga_low_resolution_sigmas') is not None:
                 self.ga_low_resolution_sigmas = conf.ga_low_resolution_sigmas
-                self.low_resolution_generations = len(self.sigmas)
+                self.low_resolution_generations = len(self.ga_low_resolution_sigmas)
             else:
                 self.low_resolution_generations = 0
 
