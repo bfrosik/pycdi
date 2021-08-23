@@ -156,24 +156,24 @@ class Rec:
                 devlib.set_device(device_id)
             except Exception as e:
                 print (e)
-                raise EnvironmentError
+                print ('may need to restart GUI')
+                return -1
         if self.data_file.endswith('tif') or self.data_file.endswith('tiff'):
             try:
                 data_np = ut.read_tif(self.data_file)
                 data = devlib.from_numpy(data_np)
-            except:
-
-                print('could not load data file', self.data_file)
-                raise ValueError
+            except Exception as e:
+                print (e)
+                return -1
         elif self.data_file.endswith('npy'):
             try:
                 data = devlib.load(self.data_file)
-            except:
-                print('could not load data file', self.data_file)
-                raise ValueError
+            except Exception as e:
+                print (e)
+                return -1
         else:
             print('no data file found')
-            raise ValueError
+            return -1
 
         # in the formatted data the max is in the center, we want it in the corner, so do fft shift
         self.data = devlib.fftshift(devlib.absolute(data))
