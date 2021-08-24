@@ -231,6 +231,7 @@ class Rec:
                           self.to_direct_space,
                           self.er,
                           self.hio,
+                          self.new_alg,
                           self.twin_trigger,
                           self.average_trigger,
                           self.progress_trigger]
@@ -459,6 +460,11 @@ class Rec:
         combined_image = self.ds_image - adj_calc_image
         support = self.support_obj.get_support()
         self.ds_image = devlib.where((support > 0), self.ds_image_raw, combined_image)
+
+
+    def new_alg(self):
+        print('in new_alg, works like er')
+        self.ds_image = self.ds_image_raw * self.support_obj.get_support()
 
 
     def twin_trigger(self):
