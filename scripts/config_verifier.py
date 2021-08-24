@@ -260,7 +260,7 @@ def ver_config_rec(fname):
                     if type(algorithm) != str:
                         print ('algorithm_sequence configuration error, algorithm should be str')
                         return False
-                    algorithm_options = ["ER", "HIO", "NEW_ALG"
+                    algorithm_options = ["ER", "HIO", "NEW_ALG"]
                     if algorithm not in algorithm_options:
                         print ('algorithm_sequence configuration error, algorithm should be "ER" or "HIO"')
                         return False
