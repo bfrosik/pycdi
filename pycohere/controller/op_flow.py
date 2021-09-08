@@ -108,7 +108,7 @@ def get_flow_arr(params, flow_items_list, curr_gen=None, first_run=False):
         elif flow_items_list[i] == 'set_prev_pcdi_trigger':
             if pcdi_start is not None:
                 flow_arr[i, : -1] = flow_arr[pcdi_row, 1:]
-        elif flow_items_list[i] == 'er' or flow_items_list[i] == 'hio' or flow_items_list[i] == 'new_alg'
+        elif flow_items_list[i] == 'er' or flow_items_list[i] == 'hio' or flow_items_list[i] == 'new_alg':
             flow_arr[i] = algorithm_row(flow_items_list[i], algorithm_sequence)
         elif flow_items_list[i] == 'twin_trigger' and first_run:
             if config_map.lookup('twin_trigger') is not None:
