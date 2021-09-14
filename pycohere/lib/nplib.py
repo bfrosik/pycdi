@@ -36,6 +36,9 @@ class nplib(cohlib):
 
     def hasnan(arr):
         return np.any(np.isnan(arr))
+    
+    def copy(arr):
+        return np.copy(arr)
 
     def random(shape, **kwargs):
         import time
