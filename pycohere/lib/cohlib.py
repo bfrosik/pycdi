@@ -33,6 +33,9 @@ class cohlib:
     def hasnan(arr):
         pass
 
+    def copy(arr):
+        pass
+
     def fftshift(arr):
         pass
 
