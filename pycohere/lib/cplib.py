@@ -39,6 +39,9 @@ class cplib(cohlib):
 
     def hasnan(arr):
         return cp.any(cp.isnan(arr))
+    
+    def copy(arr):
+        return cp.copy(arr)
 
     def random(shape, **kwargs):
         import time
