@@ -46,16 +46,14 @@ class Pcdi:
                 self.kernel = None
 
         self.dims = devlib.dims(data)
-        centered = devlib.ifftshift(data).copy()
-        self.roi_data = dvut.crop_center(centered, self.params.partial_coherence_roi)
+        self.roi_data = dvut.crop_center(devlib.ifftshift(data), self.params.partial_coherence_roi)
         if self.params.partial_coherence_normalize:
             self.sum_roi_data = devlib.sum(devlib.square(self.roi_data))
         if self.kernel is None:
             self.kernel = devlib.full(self.params.partial_coherence_roi, 0.5, dtype=devlib.dtype(data))
 
     def set_previous(self, abs_amplitudes):
-        centered = devlib.ifftshift(abs_amplitudes).copy()
-        self.roi_amplitudes_prev = dvut.crop_center(centered, self.params.partial_coherence_roi)
+        self.roi_amplitudes_prev = dvut.crop_center(devlib.ifftshift(abs_amplitudes), self.params.partial_coherence_roi)
 
     def apply_partial_coherence(self, abs_amplitudes):
         abs_amplitudes_2 = devlib.square(abs_amplitudes)
@@ -65,8 +63,7 @@ class Pcdi:
         return converged
 
     def update_partial_coherence(self, abs_amplitudes):
-        centered = devlib.ifftshift(abs_amplitudes).copy()
-        roi_amplitudes = dvut.crop_center(centered, self.params.partial_coherence_roi)
+        roi_amplitudes = dvut.crop_center(devlib.ifftshift(abs_amplitudes), self.params.partial_coherence_roi)
         roi_combined_amp = 2 * roi_amplitudes - self.roi_amplitudes_prev
         if self.params.partial_coherence_normalize:
             amplitudes_2 = devlib.square(roi_combined_amp)
@@ -81,8 +78,8 @@ class Pcdi:
                                     self.params.partial_coherence_iteration_num)
 
     def lucy_deconvolution(self, amplitudes, data, iterations):
-        data_mirror = devlib.flip(data).copy()
-        for i in range(self.params.partial_coherence_iteration_num):
+        data_mirror = devlib.flip(data)
+        for i in range(iterations):
             conv = devlib.fftconvolve(self.kernel, data)
             devlib.where(conv == 0, 1.0, conv)
             relative_blurr = amplitudes / conv
@@ -147,6 +144,8 @@ class Rec:
         self.params = params
         self.data_file = data_file
         self.ds_image = None
+        self.need_save_data = False
+        self.saved_data = None
 
 
     def init_dev(self, device_id):
@@ -179,10 +178,18 @@ class Rec:
         self.data = devlib.fftshift(devlib.absolute(data))
         self.dims = devlib.dims(self.data)
         print ('data shape', self.dims)
+
+        if self.need_save_data:
+            self.saved_data = devlib.copy(self.data)
+            self.need_save_data = False
+            
         return 0
 
 
     def fast_ga(self, worker_qin, worker_qout):
+        if self.params.low_resolution_generations > 0:
+                self.need_save_data = True
+
         functions_dict = {}
         functions_dict[self.init_dev.__name__] = self.init_dev
         functions_dict[self.init.__name__] = self.init
@@ -225,8 +232,8 @@ class Rec:
                           self.to_reciprocal_space,
                           self.new_func_trigger,
                           self.pcdi_trigger,
-                          self.pcdi,
-                          self.no_pcdi,
+                          self.pcdi_modulus,
+                          self.modulus,
                           self.set_prev_pcdi_trigger,
                           self.to_direct_space,
                           self.er,
@@ -259,7 +266,18 @@ class Rec:
         if self.is_pcdi:
             self.pcdi_obj = Pcdi(self.params, self.data, dir)
 
-        if self.params.ll_sigmas is None:
+        # for the fast GA the data needs to be saved, as it would be changed by each lr generation
+        # for non-fast GA the Rec object is created in each generation with the initial data
+        if self.saved_data is not None:
+            if self.params.low_resolution_generations > self.gen:
+                self.data = devlib.gaussian_filter(self.saved_data, self.params.ga_low_resolution_sigmas[self.gen])
+            else:
+                self.data = self.saved_data
+        else:
+            if self.gen is not None and self.params.low_resolution_generations > self.gen:
+                self.data = devlib.gaussian_filter(self.data, self.params.ga_low_resolution_sigmas[self.gen])
+
+        if self.params.ll_sigmas is None or not first_run:
             self.iter_data = self.data
         else:
             self.iter_data = self.data.copy()
@@ -268,16 +286,12 @@ class Rec:
             max_data = devlib.amax(self.data)
             self.ds_image *= get_norm(self.ds_image) * max_data
 
+            # the lines below are for testing to set the initial guess to support
+            # works for cupy and numpy
             # temp = self.support_obj.get_support().copy()
-            # self.ds_image = devlib.asarray(temp, dtype=data.dtype)
+            # self.ds_image = temp.astype(self.data.dtype) + 1j * temp.astype(self.data.dtype)
 
             self.ds_image *= self.support_obj.get_support()
-            if self.params.generations > 1:
-                self.state = 'first_gen'
-            else:
-                self.state = 'first_run'
-        else:
-            self.state = 'cont'
 
         return 0
 
@@ -380,11 +394,9 @@ class Rec:
         self.iter = self.iter + 1
         # the sigma used when recalculating support and data can be modified
         # by resolution trigger. So set the params to the configured values at the beginning
-        # of iteration
-        if self.params.ll_sigmas is not None:
-            self.sigma = self.params.support_sigma
-        if self.params.ll_dets is not None:
-            self.iter_data = self.data
+        # of iteration, and if resolution is used it will modify the items
+        self.sigma = self.params.support_sigma
+        self.iter_data = self.data
 
 
     def resolution_trigger(self):
@@ -421,10 +433,10 @@ class Rec:
         
         
     def pcdi_trigger(self):
-        self.pcdi_obj.update_partial_coherence(devlib.absolute(self.rs_amplitudes).copy())
+        self.pcdi_obj.update_partial_coherence(devlib.absolute(self.rs_amplitudes))
 
 
-    def pcdi(self):
+    def pcdi_modulus(self):
         abs_amplitudes = devlib.absolute(self.rs_amplitudes).copy()
         converged = self.pcdi_obj.apply_partial_coherence(abs_amplitudes)
         ratio = self.get_ratio(self.iter_data, devlib.absolute(converged))
@@ -434,16 +446,16 @@ class Rec:
         self.rs_amplitudes *= ratio
 
 
-    def no_pcdi(self):
+    def modulus(self):
         ratio = self.get_ratio(self.iter_data, devlib.absolute(self.rs_amplitudes))
         error = get_norm(devlib.where((self.rs_amplitudes > 0), (devlib.absolute(self.rs_amplitudes) - self.iter_data),
                                            0)) / get_norm(self.iter_data)
         self.errs.append(error)
-        self.rs_amplitudes = self.rs_amplitudes * ratio
+        self.rs_amplitudes *= ratio
 
 
     def set_prev_pcdi_trigger(self):
-        self.pcdi_obj.set_previous(devlib.absolute(self.rs_amplitudes).copy())
+        self.pcdi_obj.set_previous(devlib.absolute(self.rs_amplitudes))
 
 
     def to_direct_space(self):
@@ -456,8 +468,7 @@ class Rec:
 
 
     def hio(self):
-        adj_calc_image = self.ds_image_raw * self.params.beta
-        combined_image = self.ds_image - adj_calc_image
+        combined_image = self.ds_image - self.ds_image_raw * self.params.beta
         support = self.support_obj.get_support()
         self.ds_image = devlib.where((support > 0), self.ds_image_raw, combined_image)
 
@@ -499,7 +510,6 @@ class Rec:
 
 
     def get_ratio(self, divident, divisor):
-        divisor_copy = divisor.copy()
-        divisor_copy = devlib.where((divisor_copy != 0.0), divisor_copy, 1.0)
-        ratio = divident / divisor_copy
+        divisor = devlib.where((divisor != 0.0), divisor, 1.0)
+        ratio = divident / divisor
         return ratio
