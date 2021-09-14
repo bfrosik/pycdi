@@ -51,159 +51,77 @@ def set_lib(pkg, ndim=None):
     calc.set_lib(dvclib, pkg=='af')
 
 
-class Generation:
+def order_dirs(dirs, evals, metric):
     """
-    This class holds fields relevant to generations according to configuration and encapsulates generation functionality.
+    Orders results in generation directory in subdirectories numbered from 0 and up, the best result stored in the '0' subdirectory. The ranking is done by numbers in evals list, which are the results of the generation's metric to the image array.
+
+    Parameters
+    ----------
+    dirs : list
+        list of directories where the reconstruction results files are saved
+    evals : list
+        list of evaluation of the results in the directories from the dirs list. The evaluation is a number calculated for metric configured for this generation
+
+    Returns
+    -------
+    nothing
     """
+    # ranks keeps indexes of reconstructions from best to worst
+    # for most of the metric types the minimum of the metric is best, but for
+    # 'summed_phase' and 'area' it is oposite, so reversing the order
+    ranks = np.argsort(evals).tolist()
+    if metric == 'summed_phase' or metric == 'area':
+        ranks.reverse()
 
-    def __init__(self, pars):
-        """
-        Constructor, parses GA parameters from configuration file and saves as class members.
-        """
-        self.current_gen = 0
-        self.generations = pars.generations
-        self.metrics = tuple(pars.metrics)
-        self.ga_reconstructions = pars.ga_reconstructions
-        self.ga_support_thresholds = tuple(pars.ga_support_thresholds)
-        self.ga_support_sigmas = tuple(pars.ga_support_sigmas)
-        self.breed_modes = tuple(pars.breed_modes)
-        self.low_resolution_generations = pars.low_resolution_generations
-        if self.low_resolution_generations > 0:
-            self.low_resolution_alg = pars.low_resolution_alg
-            self.sigmas = pars.ga_low_resolution_sigmas
+    # all the generation directories are in the same parent directory
+    parent_dir = os.path.abspath(os.path.join(dirs[0], os.pardir))
+    rank_dirs = []
+    # append "_<rank>" to each result directory name
+    for i in range(len(ranks)):
+        dest = os.path.join(parent_dir, str(i) + '_' + str(ranks[i]))
+        shutil.move(dirs[i], dest)
+        rank_dirs.append(dest)
 
-
-    def next_gen(self):
-        """
-        Advances to the next generation.
-
-        Parameters
-        ----------
-        none
-
-        Returns
-        -------
-        nothing
-        """
-        self.current_gen += 1
+    # remove the number preceding rank from each directory name, so the directories are numbered
+    # according to rank
+    for dir in rank_dirs:
+        last_sub = os.path.basename(dir)
+        dest = os.path.join(parent_dir, last_sub.split('_')[-1])
+        shutil.move(dir, dest)
 
 
-    def get_data(self, data):
-        """
-        If low resolution feature is enabled (i.e. when ga_low_resolution_sigmas parameter is defined) the data is modified in each generation that has the sigma provided in the ga_low_resolution_sigmas list. The data is multiplied by gaussian distribution calculated using the defined sigma.
+def order_processes(proc_metrics, metric_type):
+    """
+    Orders results in generation directory in subdirectories numbered from 0 and up, the best result stored in the '0' subdirectory. The ranking is done by numbers in evals list, which are the results of the generation's metric to the image array.
 
-        Parameters
-        ----------
-        data : ndarray
-            experiment data array, prepared and formatted
+    Parameters
+    ----------
+    dirs : list
+        list of directories where the reconstruction results files are saved
+    evals : list
+        list of evaluation of the results in the directories from the dirs list. The evaluation is a number calculated for metric configured for this generation
 
-        Returns
-        -------
-        data : ndarray
-            modified data
-        """
-        if self.current_gen >= self.low_resolution_generations:
-            return data
-        else:
-            gmask = self.get_gmask(data.shape)
-            return data * gmask
-
-    def get_gmask(self, shape):
-        """
-        It calculates the gaussian distribution for low resolution generations.
-
-        Parameters
-        ----------
-        shape : tuple
-            shape of the data array
-
-        Returns
-        -------
-        mask : ndarray
-            array of the same size as data containing Gaussian distribution accross all dimensions for low resolution generations, or array of 1s for other generations.
-        """
-        if self.low_resolution_alg == 'GAUSS':
-            if self.sigmas[self.current_gen] < 1.0:
-                ut.gaussian(shape, self.sigmas[self.current_gen])
-            else:
-                return np.ones(shape)
+    Returns
+    -------
+    nothing
+    """
+    ranked_proc = sorted(proc_metrics.items(), key=lambda x: x[1], reverse=False)
+    # ranks keeps indexes of reconstructions from best to worst
+    # for most of the metric types the minimum of the metric is best, but for
+    # 'summed_phase' and 'area' it is oposite, so reversing the order
+    # procs, metrics = zip(*proc_metrics)
+    # ranks = np.argsort(metrics).tolist()
+    if metric_type == 'summed_phase' or metric_type == 'area':
+        ranked_proc.reverse()
+    # proc_ranks = list(zip(procs, ranks))
+    return ranked_proc
 
 
-    def order_dirs(self, dirs, evals):
-        """
-        Orders results in generation directory in subdirectories numbered from 0 and up, the best result stored in the '0' subdirectory. The ranking is done by numbers in evals list, which are the results of the generation's metric to the image array.
-
-        Parameters
-        ----------
-        dirs : list
-            list of directories where the reconstruction results files are saved
-        evals : list
-            list of evaluation of the results in the directories from the dirs list. The evaluation is a number calculated for metric configured for this generation
-
-        Returns
-        -------
-        nothing
-        """
-        metric = self.metrics[self.current_gen]
-        # ranks keeps indexes of reconstructions from best to worst
-        # for most of the metric types the minimum of the metric is best, but for
-        # 'summed_phase' and 'area' it is oposite, so reversing the order
-        ranks = np.argsort(evals).tolist()
-        if metric == 'summed_phase' or metric == 'area':
-            ranks.reverse()
-
-        # all the generation directories are in the same parent directory
-        parent_dir = os.path.abspath(os.path.join(dirs[0], os.pardir))
-        rank_dirs = []
-        # append "_<rank>" to each result directory name
-        for i in range(len(ranks)):
-            dest = os.path.join(parent_dir, str(i) + '_' + str(ranks[i]))
-            shutil.move(dirs[i], dest)
-            rank_dirs.append(dest)
-
-        # remove the number preceding rank from each directory name, so the directories are numbered
-        # according to rank
-        for dir in rank_dirs:
-            last_sub = os.path.basename(dir)
-            dest = os.path.join(parent_dir, last_sub.split('_')[-1])
-            shutil.move(dir, dest)
-
-
-    def order_processes(self, proc_metrics):
-        """
-        Orders results in generation directory in subdirectories numbered from 0 and up, the best result stored in the '0' subdirectory. The ranking is done by numbers in evals list, which are the results of the generation's metric to the image array.
-
-        Parameters
-        ----------
-        dirs : list
-            list of directories where the reconstruction results files are saved
-        evals : list
-            list of evaluation of the results in the directories from the dirs list. The evaluation is a number calculated for metric configured for this generation
-
-        Returns
-        -------
-        nothing
-        """
-        ranked_proc = sorted(proc_metrics.items(), key=lambda x: x[1], reverse=False)
-        metric_type = self.metrics[self.current_gen]
-        # ranks keeps indexes of reconstructions from best to worst
-        # for most of the metric types the minimum of the metric is best, but for
-        # 'summed_phase' and 'area' it is oposite, so reversing the order
-        # procs, metrics = zip(*proc_metrics)
-        # ranks = np.argsort(metrics).tolist()
-        if metric_type == 'summed_phase' or metric_type == 'area':
-            ranked_proc.reverse()
-        # proc_ranks = list(zip(procs, ranks))
-        return ranked_proc
-
-
-    def cull(self, lst):
-        print('breeding generation ', (self.current_gen + 1))
-
-        if len(lst) <= self.ga_reconstructions[self.current_gen]:
-            return lst
-        else:
-            return lst[0:self.ga_reconstructions[self.current_gen]]
+def cull(lst, no_left):
+    if len(lst) <= no_left:
+        return lst
+    else:
+        return lst[0:no_left]
 
 
 def reconstruction(lib, conf_file, datafile, dir, devices):
@@ -263,8 +181,6 @@ def reconstruction(lib, conf_file, datafile, dir, devices):
     except:
         reconstructions = 1
 
-    gen_obj = Generation(pars)
-
     try:
         save_dir = pars.save_dir
     except AttributeError:
@@ -293,6 +209,7 @@ def reconstruction(lib, conf_file, datafile, dir, devices):
 
             prev_dirs = None
             for g in range(generations):
+                print ('starting generation',g)
                 if g == 0:
                     for pid in processes:
                         worker_qin = processes[pid][0]
@@ -350,9 +267,9 @@ def reconstruction(lib, conf_file, datafile, dir, devices):
                     metric = worker_qout.get()
                     proc_metrics[pid] = metric
                 # order processes by metric
-                proc_ranks = gen_obj.order_processes(proc_metrics)
+                proc_ranks = order_processes(proc_metrics, metric_type)
                 # cull
-                culled_proc_ranks = gen_obj.cull(proc_ranks)
+                culled_proc_ranks = cull(proc_ranks, pars.ga_reconstructions[g])
                 # remove culled processes from list (in the future we may reuse them)
                 for i in range(len(culled_proc_ranks), len(proc_ranks)):
                     pid = proc_ranks[i][0]
@@ -372,39 +289,26 @@ def reconstruction(lib, conf_file, datafile, dir, devices):
                     ret = worker_qout.get()
                 if len(processes) == 0:
                     break
-                gen_obj.next_gen()
             for pid in processes:
                 worker_qin = processes[pid][0]
                 worker_qin.put('done')
-        else:
+        else:   # not fast GA
             rec = multi
             prev_dirs = []
             for _ in range(reconstructions):
                 prev_dirs.append(None)
             for g in range(generations):
+                print ('starting generation',g)
                 gen_save_dir = os.path.join(save_dir, 'g_' + str(g))
-                metric_type = gen_obj.metrics[g]
+                metric_type = pars.metrics[g]
                 workers = [calc.Rec(pars, datafile) for _ in range(len(prev_dirs))]
                 prev_dirs, evals = rec.multi_rec(gen_save_dir, devices, workers, prev_dirs, metric_type, g)
 
                 # results are saved in a list of directories - save_dir
                 # it will be ranked, and moved to temporary ranked directories
-                gen_obj.order_dirs(prev_dirs, evals)
-                prev_dirs = gen_obj.cull(prev_dirs)
-                gen_obj.next_gen()
+                order_dirs(prev_dirs, evals, metric_type)
+                prev_dirs = cull(prev_dirs, pars.ga_reconstructions[g])
     else:
-        image = None
-        support = None
-        coh = None
-        rec = single
-
-        for g in range(generations):
-            gen_data = gen_obj.get_data(data)
-            ret_code = rec.single_rec(lib, os.path.join(save_dir, 'g_' + str(g)), gen_data, pars,
-                                                                               devices[0], image, support, coh)
-            if ret_code != 0:
-                return
-
-            gen_obj.next_gen()
+        print ("GA not implemented for a single reconstruction")
 
     print('done gen')
