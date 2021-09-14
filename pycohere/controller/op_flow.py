@@ -97,10 +97,10 @@ def get_flow_arr(params, flow_items_list, curr_gen=None, first_run=False):
                     else:
                         pcdi_start = 0
                     pcdi_row = i
-        elif flow_items_list[i] == 'pcdi':
+        elif flow_items_list[i] == 'pcdi_modulus':
             if pcdi_start is not None:
                 flow_arr[i, pcdi_start:] = 1
-        elif flow_items_list[i] == 'no_pcdi':
+        elif flow_items_list[i] == 'modulus':
             if pcdi_start is not None:
                 flow_arr[i, : pcdi_start] = 1
             else:
