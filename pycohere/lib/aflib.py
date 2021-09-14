@@ -38,6 +38,9 @@ class aflib(cohlib):
 
     def hasnan(arr):
         return af.any_true(af.isnan(arr))
+    
+    def copy(arr):
+        return arr.copy()
 
     def random(shape, **kwargs):
         import time
