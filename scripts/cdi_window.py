@@ -596,7 +596,7 @@ class DataTab(QWidget):
         self.set_alien_layout(sub_layout)
         layout.addRow(sub_layout)
         self.amp_intensity = QLineEdit()
-        layout.addRow("amp intensity", self.amp_intensity)
+        layout.addRow("Intensity Threshold", self.amp_intensity)
         self.center_shift = QLineEdit()
         layout.addRow("center_shift", self.center_shift)
         self.adjust_dimensions = QLineEdit()
@@ -828,7 +828,7 @@ class DataTab(QWidget):
         elif not self.main_win.is_exp_set():
             msg_window('the experiment has changed, pres "set experiment" button')
         elif len(self.amp_intensity.text()) == 0:
-            msg_window('Please, enter amp intensity parameter')
+            msg_window('Please, enter Intensity Threshold parameter')
         else:
             found_file = False
             for p, d, f in os.walk(self.main_win.experiment_dir):
