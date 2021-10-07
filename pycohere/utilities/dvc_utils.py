@@ -62,7 +62,7 @@ def gauss_conv_fft(arr, distribution):
     return convag
 
 
-def shrink_wrap(arr, threshold, distribution, support=None):
+def shrink_wrap(arr, threshold, sigma):
     """
     Calculates support array.
 
@@ -81,13 +81,14 @@ def shrink_wrap(arr, threshold, distribution, support=None):
     support : ndarray
         support array
     """
+    sigmas = [dim / (2.0 * math.pi * sigma) for dim in dims]
+    distribution = dvclib.gaussian(dvclib.dims(arr), sigmas)
     convag = gauss_conv_fft(dvclib.absolute(arr), distribution)
     max_convag = dvclib.amax(convag)
     convag = convag / max_convag
-    if support is None:
-        support = dvclib.full(dvclib.dims(convag), 1)
+   
+    support = dvclib.full(dvclib.dims(convag), 1)
     support = dvclib.where(convag >= threshold, support, 0)
-    support = dvclib.where(convag >= threshold, 1, support)
     return support
 
 
