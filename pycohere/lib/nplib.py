@@ -133,8 +133,25 @@ class nplib(cohlib):
         return np.full(shape, fill_value)
 
     def gaussian(shape, sigmas, **kwargs):
-        inarr = np.full(shape, 1.0)
-        return scipy.ndimage.gaussian_filter(inarr, sigmas)
+        grid = np.full(shape, 1.0)
+        for i in range(len(shape)):
+            # prepare indexes for tile and transpose
+            tile_shape = list(shape)
+            tile_shape.pop(i)
+            tile_shape.append(1)
+            trans_shape = list(range(len(shape) - 1))
+            trans_shape.insert(i, len(shape) - 1)
+
+            multiplier = - 0.5 / pow(sigmas[i], 2)
+            line = np.linspace(-(shape[i] - 1) / 2.0, (shape[i] - 1) / 2.0, shape[i])
+            gi = np.tile(line, tile_shape)
+            gi = np.transpose(gi, tuple(trans_shape))
+            exponent = np.power(gi, 2) * multiplier
+            gi = np.exp(exponent)
+            grid = grid * gi
+
+        grid_total = np.sum(grid)
+        return grid / grid_total
 
     def center_of_mass(inarr):
         return scipy.ndimage.center_of_mass(np.absolute(inarr))
