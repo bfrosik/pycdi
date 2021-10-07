@@ -128,9 +128,9 @@ class Support:
 
     def update_amp(self, ds_image, sigma, threshold):
         if sigma != self.prev_sigma:
-            self.distribution = self.get_distribution(self.dims, sigma)
+            # self.distribution = self.get_distribution(self.dims, sigma)
             self.prev_sigma = sigma
-        self.support = dvut.shrink_wrap(ds_image, threshold, self.distribution, self.support)
+        self.support = dvut.shrink_wrap(ds_image, threshold, sigma)
 
 
     def update_phase(self, ds_image):
@@ -268,15 +268,8 @@ class Rec:
 
         # for the fast GA the data needs to be saved, as it would be changed by each lr generation
         # for non-fast GA the Rec object is created in each generation with the initial data
-        if self.saved_data is not None:
-            if self.params.low_resolution_generations > self.gen:
-                self.data = devlib.gaussian_filter(self.saved_data, self.params.ga_low_resolution_sigmas[self.gen])
-            else:
-                self.data = self.saved_data
-        else:
-            if self.gen is not None and self.params.low_resolution_generations > self.gen:
-                self.data = devlib.gaussian_filter(self.data, self.params.ga_low_resolution_sigmas[self.gen])
-
+        # need to implement ga_lr here
+        
         if self.params.ll_sigmas is None or not first_run:
             self.iter_data = self.data
         else:
