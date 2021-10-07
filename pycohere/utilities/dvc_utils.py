@@ -81,7 +81,7 @@ def shrink_wrap(arr, threshold, sigma):
     support : ndarray
         support array
     """
-    sigmas = [dim / (2.0 * math.pi * sigma) for dim in dims]
+    sigmas = [dim / (2.0 * math.pi * sigma) for dim in dvclib.dims(arr)]
     distribution = dvclib.gaussian(dvclib.dims(arr), sigmas)
     convag = gauss_conv_fft(dvclib.absolute(arr), distribution)
     max_convag = dvclib.amax(convag)
