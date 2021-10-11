@@ -1,2 +1,2 @@
 # pycdi
-python only version of cohere
+Python only version of cohere
