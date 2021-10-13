@@ -121,6 +121,9 @@ class cohlib:
     def gaussian(dims, sigmas, **kwargs):
         pass
 
+    def gaussian_filter(arr, sigmas, **kwargs):
+        pass
+
     def center_of_mass(arr):
         pass
 
