@@ -135,6 +135,10 @@ class cplib(cohlib):
     def gaussian(shape, sigmas, **kwargs):
         inarr = cp.full(shape, 1.0)
         return ndimage.gaussian_filter(inarr, sigmas)
+    
+    def gaussian_filter(arr, sigmas, **kwargs):
+        from cupyx.scipy.ndimage import gaussian_filter
+        return gaussian_filter(arr, sigmas)
 
     def center_of_mass(inarr):
         return cpx.scipy.ndimage.center_of_mass(cp.absolute(inarr))
